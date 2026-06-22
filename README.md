@@ -91,4 +91,4 @@ lib/
 - FTP auto-detection from imported efforts.
 - Wireless Garmin push (approved Training API) and multi-user accounts.
 
-Model defaults to **Haiku 4.5** (`claude-haiku-4-5-20251001`) — $1/$5 per Mtok, vision-capable — for all calls. Set `ANTHROPIC_PLAN_MODEL=claude-sonnet-4-6` to upgrade only the weekly-plan call. Change the default via `ANTHROPIC_MODEL`.
+Models: the frequent calls (coach Q&A, screenshot reads) use **Haiku 4.5** (`claude-haiku-4-5-20251001`, $1/$5 per Mtok, vision-capable). The weekly-plan call uses **Sonnet** by default because it's long structured JSON that small models can mangle — it's infrequent so the cost stays low. Override either: `ANTHROPIC_MODEL`, `ANTHROPIC_PLAN_MODEL`.
