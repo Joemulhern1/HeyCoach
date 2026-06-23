@@ -3,15 +3,21 @@
 Your personal AI cycling coach and nutritionist. Set power **and** weight goals, log your
 completed rides, get an adaptive weekly plan (cycling + gym), nutrition that runs your
 deficit intelligently, structured workouts you can push to a Garmin device, and a coach you
-can ask anything. Single-user, self-hosted, your data stays yours.
+can ask anything. Multi-user, self-hosted: each member gets their own login and fully isolated training data, managed from an admin console.
 
 ## What it does
 
 - **Two goals tracked together** — FTP (e.g. 240→270W) and weight (e.g. 84→75kg). The
   dashboard shows both, plus your projected power-to-weight (the number that actually wins
   races): 240W/84kg = 2.86 W/kg today → 270W/75kg = **3.6 W/kg**.
-- **AI weekly plan** — cycling + gym, periodised toward your event, adapting to what you've
-  actually done.
+- **AI multi-week plan on a calendar** — a full periodised block (Base → Build → Peak → Taper
+  with recovery weeks) from now to your event, shown as a week-by-week calendar. Detailed
+  intervals for a given week are generated on demand (tap a future ride → "Prepare this week"),
+  so each ride still exports to Garmin.
+- **Adaptive progression** — per-zone fitness "progression levels" (1–10) that move from your
+  ride feedback (Nailed it / Completed / Hard / Missed on each logged session). The plan leans
+  into your strong zones and eases the weak ones, and an FTP-bump prompt appears when a recent
+  long effort suggests your FTP is underset.
 - **Garmin workout export** — every ride day generates a structured `.fit` workout with
   on-device power targets (see "Send a workout to Garmin").
 - **Three ways to log completed sessions, all AI-safe (your own data):**
@@ -24,6 +30,10 @@ can ask anything. Single-user, self-hosted, your data stays yours.
 - **Weight log** — quick weigh-ins, current + 7-day average, to-target readout. Feeds the coach.
 - **Ask your coach** — training or nutrition, in plain language.
 - **Strava auto-sync (optional)** — see "Strava" below; off by default.
+
+## Members & logins
+
+HeyCoach is multi-user. On first run, visit **/setup** to create the admin account (you). After that, manage members at **/admin** — add a friend with a username + temporary password, and they sign in at **/login** and start fresh. Every account's plan, sessions, weights, progression and Strava connection are stored under their own key and never visible to others. Passwords are scrypt-hashed; sessions are HMAC-signed cookies. **Set a stable `SESSION_SECRET`** (see `.env.example`) — it signs those sessions.
 
 ## Quick start (runs immediately)
 
@@ -71,16 +81,28 @@ set the Authorization Callback Domain to your host, fill the env vars, then clic
 ```
 app/
   page.jsx                       UI (onboarding + dashboard), inline-styled
-  api/state, profile, plan, coach
+  login / setup / admin          pages: sign-in, first-admin, member management
+  api/auth/*                     login, logout, setup, me
+  api/admin/users                list / add / disable / delete members (admin only)
+  api/state, profile, coach
+  api/block + /block/week        multi-week plan + on-demand week detail
+  api/feedback                   ride outcome -> progression update
+  api/library/workout            export a library workout as Garmin .fit
+  api/form                       on-demand AI read of your CTL/ATL/TSB (Haiku)
   api/sessions  (file import) + /screenshot (vision) + /manual
   api/weight                     weigh-in log
   api/workout                    GET ?day=N -> structured .fit download
   api/strava/connect|callback|sync|status   optional auto-sync
 lib/
-  store.js      single-user JSON store (swap for KV/Postgres on serverless)
+  store.js      per-user KV store (Upstash Redis or JSON files), auto-scoped to the session
+  session.js    HMAC-signed session tokens (Edge + Node)
+  users.js      member registry, scrypt password hashing
   anthropic.js  Claude client (text + vision)
   coach.js      plan + Q&A prompts, screenshot extraction, weight/deficit logic
-  parse.js      .fit/.tcx/.gpx -> session summary, rough TSS
+  parse.js        .fit/.tcx/.gpx -> session summary, rough TSS
+  progression.js  per-zone levels (deterministic), zone inference, FTP-bump heuristic
+  library.js      18 curated power workouts (science-based), scaled to FTP
+  analytics.js    Performance Management Chart (CTL/ATL/TSB), forecast
   fit.js        structured workout -> Garmin .fit (official @garmin/fitsdk)
   strava.js     OAuth + activity fetch (optional)
 ```

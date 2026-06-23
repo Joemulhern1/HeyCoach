@@ -1,36 +1,27 @@
 import { NextResponse } from "next/server";
+import { verifySession, SESSION_COOKIE } from "./lib/session.js";
 
-// Single-user access lock. If APP_PASSWORD is set, every page AND every /api route
-// requires it (HTTP Basic Auth). If it's unset, the app is open (e.g. local dev).
-// This is what protects your Anthropic key from anyone who finds the URL.
+// Multi-user gate. Verifies the signed session cookie on every request.
+// Unauthenticated: API -> 401, pages -> redirect to /login. Public: /login, /setup, auth endpoints.
 
-export const config = {
-  // Run on everything except Next's static assets.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
-};
+export const config = { matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"] };
 
-function safeEqual(a, b) {
-  if (a.length !== b.length) return false;
-  let out = 0;
-  for (let i = 0; i < a.length; i++) out |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return out === 0;
-}
+const PUBLIC_PAGES = ["/login", "/setup"];
+const PUBLIC_API = ["/api/auth/login", "/api/auth/setup"];
 
-export function middleware(req) {
-  const expected = process.env.APP_PASSWORD;
-  if (!expected) return NextResponse.next(); // lock disabled until you set the password
+export async function middleware(req) {
+  const { pathname } = req.nextUrl;
+  const isApi = pathname.startsWith("/api");
+  const isPublic = PUBLIC_PAGES.includes(pathname) || PUBLIC_API.some((p) => pathname.startsWith(p));
 
-  const header = req.headers.get("authorization") || "";
-  const [scheme, encoded] = header.split(" ");
-  if (scheme === "Basic" && encoded) {
-    let decoded = "";
-    try { decoded = atob(encoded); } catch {}
-    const pass = decoded.slice(decoded.indexOf(":") + 1); // username ignored
-    if (safeEqual(pass, expected)) return NextResponse.next();
+  const tok = req.cookies.get(SESSION_COOKIE)?.value;
+  const session = tok ? await verifySession(tok) : null;
+
+  if (session) {
+    if (pathname === "/login" || pathname === "/setup") return NextResponse.redirect(new URL("/", req.url));
+    return NextResponse.next();
   }
-
-  return new NextResponse("Authentication required.", {
-    status: 401,
-    headers: { "WWW-Authenticate": 'Basic realm="HeyCoach", charset="UTF-8"' },
-  });
+  if (isPublic) return NextResponse.next();
+  if (isApi) return new NextResponse(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: { "content-type": "application/json" } });
+  return NextResponse.redirect(new URL("/login", req.url));
 }

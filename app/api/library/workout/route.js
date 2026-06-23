@@ -1,17 +1,17 @@
-import { readStore } from "../../../lib/store.js";
-import { buildWorkoutFit, workoutFilename } from "../../../lib/fit.js";
+import { readStore } from "../../../../lib/store.js";
+import { findWorkout } from "../../../../lib/library.js";
+import { buildWorkoutFit, workoutFilename } from "../../../../lib/fit.js";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(req) {
-  const sp = new URL(req.url).searchParams;
-  const w = Number(sp.get("week"));
-  const d = Number(sp.get("day"));
-  const store = await readStore();
-  const day = store.block?.weeks?.[w]?.days?.[d];
-  if (!day) return Response.json({ error: "No such workout in the current plan." }, { status: 404 });
+  const id = new URL(req.url).searchParams.get("id");
+  const w = findWorkout(id);
+  if (!w) return Response.json({ error: "No such workout." }, { status: 404 });
   try {
+    const store = await readStore();
     const ftp = store.profile?.currentFTP || 240;
+    const day = { day: "", title: w.name, steps: w.steps };
     const fit = buildWorkoutFit(day, ftp);
     return new Response(fit, {
       headers: {

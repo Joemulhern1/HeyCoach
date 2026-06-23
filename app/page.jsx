@@ -1,6 +1,8 @@
 "use client";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./globals.css";
+import { LIBRARY, CATEGORIES } from "../lib/library.js";
+import { computePMC } from "../lib/analytics.js";
 
 const ZONES = {
   recovery: { label: "Recovery", color: "#4FB0E3" },
@@ -51,9 +53,11 @@ const migrate = (p) => ({ ...DEFAULT_PROFILE, ...p, currentWeightKg: p.currentWe
 export default function HeyCoach() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState(DEFAULT_PROFILE);
-  const [plan, setPlan] = useState(null);
+  const [block, setBlock] = useState(null);
   const [sessions, setSessions] = useState([]);
   const [weights, setWeights] = useState([]);
+  const [progression, setProgression] = useState(null);
+  const [me, setMe] = useState(null);
   const [strava, setStrava] = useState({ configured: false, connected: false, athlete: null });
   const [screen, setScreen] = useState("onboarding");
   const [busy, setBusy] = useState(false);
@@ -63,11 +67,14 @@ export default function HeyCoach() {
     Promise.all([
       fetch("/api/state").then((r) => r.json()),
       fetch("/api/strava/status").then((r) => r.json()).catch(() => ({})),
-    ]).then(([s, st]) => {
+      fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
+    ]).then(([s, st, m]) => {
+      if (m?.user) setMe(m.user);
       if (s.profile) { setProfile(migrate(s.profile)); setScreen("dashboard"); }
-      if (s.plan) setPlan(s.plan);
+      if (s.block) setBlock(s.block);
       if (s.sessions) setSessions(s.sessions);
       if (s.weights) setWeights(s.weights);
+      if (s.progression) setProgression(s.progression);
       if (st) setStrava((p) => ({ ...p, ...st }));
     }).catch(() => {}).finally(() => setLoading(false));
     const q = new URLSearchParams(window.location.search).get("strava");
@@ -82,10 +89,10 @@ export default function HeyCoach() {
         const r = await fetch("/api/profile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(profile) });
         if (!r.ok) throw new Error((await r.json()).error || "Couldn't save your goal.");
       }
-      const r = await fetch("/api/plan", { method: "POST" });
+      const r = await fetch("/api/block", { method: "POST" });
       const data = await r.json();
-      if (!r.ok) throw new Error(data.error || "Couldn't build the week.");
-      setPlan(data.plan); setScreen("dashboard");
+      if (!r.ok) throw new Error(data.error || "Couldn't build the plan.");
+      setBlock(data.block); setScreen("dashboard");
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
 
@@ -97,12 +104,13 @@ export default function HeyCoach() {
   if (loading) return <Shell><Spinner label="Loading your coach…" /></Shell>;
 
   return (
-    <Shell>
+    <Shell me={me}>
       {error && <div style={{ background: "rgba(251,113,133,0.12)", border: `1px solid ${ZONES.vo2.color}`, borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 14 }}>{error}</div>}
       {screen === "onboarding" && <Onboarding profile={profile} setProfile={setProfile} onBuild={() => build(true)} busy={busy} />}
       {screen === "dashboard" && (
         <Dashboard
-          profile={profile} plan={plan} sessions={sessions} weights={weights} strava={strava} busy={busy}
+          profile={profile} block={block} setBlock={setBlock} sessions={sessions} weights={weights} strava={strava} busy={busy}
+          progression={progression} setProgression={setProgression}
           onEdit={() => setScreen("onboarding")} onRegenerate={() => build(false)}
           setSessions={setSessions} setWeights={setWeights} setError={setError} saveProfile={saveProfile}
         />
@@ -111,14 +119,23 @@ export default function HeyCoach() {
   );
 }
 
-function Shell({ children }) {
+function Shell({ children, me }) {
+  const logout = async () => { await fetch("/api/auth/logout", { method: "POST" }); window.location.href = "/login"; };
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text }}>
       <div style={{ maxWidth: 880, margin: "0 auto", padding: "28px 20px 64px" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 28 }}>
           <span style={{ width: 10, height: 10, background: C.brand, borderRadius: 3, transform: "rotate(45deg)" }} />
           <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: -0.4 }}><span style={{ color: C.muted }}>Hey</span>Coach</span>
-          <span style={{ marginLeft: "auto", fontSize: 11, color: C.faint, fontFamily: C.mono, letterSpacing: 1 }}>COACH · NUTRITION</span>
+          {me ? (
+            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
+              {me.role === "admin" && <a href="/admin" style={{ ...ghostBtn, padding: "5px 11px", fontSize: 12, textDecoration: "none" }}>Admin</a>}
+              <span style={{ fontSize: 12.5, color: C.muted }}>{me.displayName || me.username}</span>
+              <button onClick={logout} className="ghost" style={{ ...ghostBtn, padding: "5px 11px", fontSize: 12 }}>Log out</button>
+            </div>
+          ) : (
+            <span style={{ marginLeft: "auto", fontSize: 11, color: C.faint, fontFamily: C.mono, letterSpacing: 1 }}>COACH · NUTRITION</span>
+          )}
         </div>
         {children}
       </div>
@@ -180,14 +197,16 @@ function Onboarding({ profile, setProfile, onBuild, busy }) {
   );
 }
 
-function Dashboard({ profile, plan, sessions, weights, strava, busy, onEdit, onRegenerate, setSessions, setWeights, setError, saveProfile }) {
-  const [selected, setSelected] = useState(null);
+function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, onEdit, onRegenerate, setSessions, setWeights, setError, saveProfile, progression, setProgression }) {
+  const [selected, setSelected] = useState(null); // { week, day }
   const [q, setQ] = useState(""); const [answer, setAnswer] = useState(""); const [asking, setAsking] = useState(false);
   const [uploading, setUploading] = useState(false); const [shotting, setShotting] = useState(false);
   const [showManual, setShowManual] = useState(false); const [syncing, setSyncing] = useState(false);
+  const [preparing, setPreparing] = useState(null);
   const [kg, setKg] = useState("");
   const fileRef = useRef(null); const shotRef = useRef(null);
-  const sel = selected != null && plan ? plan.days[selected] : null;
+  const curWeek = block ? currentWeekIdx(block) : 0;
+  const sel = selected && block ? block.weeks[selected.week]?.days?.[selected.day] : null;
   const selZone = sel ? ZONES[sel.intensity] || ZONES.rest : null;
 
   const ask = async () => {
@@ -239,6 +258,14 @@ function Dashboard({ profile, plan, sessions, weights, strava, busy, onEdit, onR
     const d = await r.json(); if (r.ok) setSessions(d.sessions);
   };
 
+  const sendFeedback = async (sessionId, outcome) => {
+    const r = await fetch("/api/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId, outcome }) });
+    const d = await r.json(); if (r.ok) { setSessions(d.sessions); setProgression(d.progression); }
+  };
+
+  const bumpFtp = (newFtp) => saveProfile({ ...profile, currentFTP: newFtp });
+  const ftpSuggestion = suggestFtpClient(sessions, profile);
+
   const logWeight = async () => {
     const w = Number(kg); if (!w) return;
     const r = await fetch("/api/weight", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kg: w }) });
@@ -249,77 +276,42 @@ function Dashboard({ profile, plan, sessions, weights, strava, busy, onEdit, onR
     const d = await r.json(); if (r.ok) setWeights(d.weights);
   };
 
-  const downloadWorkout = (i) => {
-    const a = document.createElement("a"); a.href = `/api/workout?day=${i}`; a.download = "";
+  const downloadWorkout = (w, d) => {
+    const a = document.createElement("a"); a.href = `/api/workout?week=${w}&day=${d}`; a.download = "";
     document.body.appendChild(a); a.click(); a.remove();
+  };
+
+  const prepareWeek = async (weekIndex) => {
+    setPreparing(weekIndex); setError("");
+    try {
+      const r = await fetch("/api/block/week", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ weekIndex }) });
+      const d = await r.json(); if (!r.ok) throw new Error(d.error || "Couldn't prepare that week.");
+      setBlock(d.block);
+    } catch (e) { setError(e.message); } finally { setPreparing(null); }
   };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       <Card><GoalHeader profile={profile} weights={weights} onEdit={onEdit} /></Card>
 
-      {plan ? (
-        <>
-          <div>
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
-              <div><Eyebrow>This week</Eyebrow><div style={{ fontSize: 17, fontWeight: 800, marginTop: 2 }}>{plan.weekFocus}</div></div>
-              <button onClick={onRegenerate} className="ghost" style={ghostBtn} disabled={busy}>{busy ? "…" : "↻ New week"}</button>
-            </div>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(96px, 1fr))", gap: 8, overflowX: "auto" }}>
-              {plan.days.map((d, i) => {
-                const z = ZONES[d.intensity] || ZONES.rest; const active = selected === i;
-                return (
-                  <button key={i} onClick={() => setSelected(active ? null : i)} className="daycard" style={{ textAlign: "left", background: active ? C.surfaceHi : C.surface, border: `1px solid ${active ? z.color : C.border}`, borderLeft: `4px solid ${z.color}`, borderRadius: 10, padding: "12px 10px", cursor: "pointer", color: C.text, minHeight: 118, display: "flex", flexDirection: "column", gap: 6 }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                      <span style={{ fontSize: 12, fontWeight: 800 }}>{d.day}</span>
-                      <span style={{ width: 8, height: 8, borderRadius: 999, background: z.color }} />
-                    </div>
-                    <div style={{ fontSize: 13, fontWeight: 700, lineHeight: 1.2 }}>{d.title}</div>
-                    <div style={{ marginTop: "auto", fontSize: 10.5, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>{z.label}</div>
-                    <div style={{ fontFamily: C.mono, fontSize: 11, color: C.muted }}>{d.duration}</div>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-
-          {sel && (
-            <Card style={{ borderLeft: `4px solid ${selZone.color}` }}>
-              <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-                <div style={{ fontSize: 17, fontWeight: 800 }}>{sel.day} · {sel.title}</div>
-                <div style={{ fontFamily: C.mono, color: selZone.color, fontWeight: 700 }}>{selZone.label} · {sel.duration}</div>
-              </div>
-              <p style={{ lineHeight: 1.6, margin: "10px 0 0", fontSize: 15 }}>{sel.description}</p>
-              {sel.type === "ride" && sel.steps?.length > 0 && (
-                <button onClick={() => downloadWorkout(selected)} className="ghost" style={{ ...ghostBtn, marginTop: 14, color: C.text, borderColor: C.brand }}>
-                  ⬇ Garmin workout (.FIT) · {sel.steps.length} steps
-                </button>
-              )}
-            </Card>
-          )}
-
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18 }}>
-            <Card>
-              <Eyebrow>Fuel</Eyebrow>
-              <div style={{ display: "flex", gap: 18, marginTop: 12, flexWrap: "wrap" }}>
-                <Stat label="Training day" value={plan.nutrition.trainingDayCalories} unit="kcal" />
-                <Stat label="Rest day" value={plan.nutrition.restDayCalories} unit="kcal" />
-                <Stat label="Protein" value={plan.nutrition.proteinG} unit="g/day" color={C.brand} />
-              </div>
-              <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.5, marginTop: 14 }}>{plan.nutrition.notes}</p>
-            </Card>
-            <Card style={{ borderColor: C.brand, background: C.brandSoft }}>
-              <Eyebrow>Coach's note</Eyebrow>
-              <p style={{ lineHeight: 1.6, marginTop: 10, fontSize: 15 }}>{plan.coachNote}</p>
-            </Card>
-          </div>
-        </>
+      {block ? (
+        <BlockView
+          block={block} curWeek={curWeek} selected={selected} setSelected={setSelected}
+          sel={sel} selZone={selZone} onRegenerate={onRegenerate} busy={busy}
+          downloadWorkout={downloadWorkout} prepareWeek={prepareWeek} preparing={preparing}
+        />
       ) : (
         <Card><div style={{ textAlign: "center", padding: "12px 0" }}>
           <p style={{ color: C.muted, marginBottom: 14 }}>No plan yet.</p>
-          <button onClick={onRegenerate} className="primary" style={{ ...primaryBtn, width: "auto", padding: "12px 22px" }} disabled={busy}>{busy ? "Building…" : "Build my week"}</button>
+          <button onClick={onRegenerate} className="primary" style={{ ...primaryBtn, width: "auto", padding: "12px 22px" }} disabled={busy}>{busy ? "Building…" : "Build my plan"}</button>
         </div></Card>
       )}
+
+      {/* Fitness · Fatigue · Form analytics */}
+      <AnalyticsCard sessions={sessions} profile={profile} />
+
+      {/* Form: progression levels + FTP nudge */}
+      {block && <ProgressionCard progression={progression} ftpSuggestion={ftpSuggestion} onBumpFtp={bumpFtp} />}
 
       {/* Weight tracking */}
       <WeightCard profile={profile} weights={weights} kg={kg} setKg={setKg} logWeight={logWeight} removeWeight={removeWeight} />
@@ -355,21 +347,27 @@ function Dashboard({ profile, plan, sessions, weights, strava, busy, onEdit, onR
         {sessions.length > 0 && (
           <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
             {sessions.slice(0, 10).map((s) => (
-              <div key={s.id} style={{ display: "flex", alignItems: "center", gap: 12, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
-                  <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>{s.date ? s.date.slice(0, 10) : "—"} · {s.source}</div>
+              <div key={s.id} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
+                    <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>{s.date ? s.date.slice(0, 10) : "—"} · {s.source}</div>
+                  </div>
+                  <Metric v={fmtMins(s.durationSec)} l="time" />
+                  {s.distanceKm != null && <Metric v={`${s.distanceKm}km`} l="dist" />}
+                  {s.avgPower != null && <Metric v={`${s.avgPower}W`} l="avg" />}
+                  {s.avgHr != null && <Metric v={`${s.avgHr}`} l="bpm" />}
+                  <button onClick={() => removeSession(s.id)} className="ghost" style={{ ...ghostBtn, padding: "4px 9px", fontSize: 12 }}>✕</button>
                 </div>
-                <Metric v={fmtMins(s.durationSec)} l="time" />
-                {s.distanceKm != null && <Metric v={`${s.distanceKm}km`} l="dist" />}
-                {s.avgPower != null && <Metric v={`${s.avgPower}W`} l="avg" />}
-                {s.avgHr != null && <Metric v={`${s.avgHr}`} l="bpm" />}
-                <button onClick={() => removeSession(s.id)} className="ghost" style={{ ...ghostBtn, padding: "4px 9px", fontSize: 12 }}>✕</button>
+                <FeedbackStrip s={s} onFeedback={sendFeedback} />
               </div>
             ))}
           </div>
         )}
       </Card>
+
+      {/* Workout library */}
+      <LibraryCard />
 
       {/* Ask coach */}
       <Card>
@@ -481,3 +479,300 @@ const Metric = ({ v, l }) => (
     <div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase" }}>{l}</div>
   </div>
 );
+
+function currentWeekIdx(block) {
+  if (!block?.weeks?.length) return 0;
+  const today = new Date().toISOString().slice(0, 10);
+  for (let i = block.weeks.length - 1; i >= 0; i--) {
+    if (block.weeks[i].startDate <= today) return i;
+  }
+  return 0;
+}
+
+function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRegenerate, busy, downloadWorkout, prepareWeek, preparing }) {
+  const selWeek = selected ? block.weeks[selected.week] : null;
+  return (
+    <>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
+        <div><Eyebrow>Training plan</Eyebrow><div style={{ fontSize: 17, fontWeight: 800, marginTop: 2 }}>{block.weeks.length} weeks to your event</div></div>
+        <button onClick={onRegenerate} className="ghost" style={ghostBtn} disabled={busy}>{busy ? "…" : "↻ Rebuild"}</button>
+      </div>
+      {block.summary && <p style={{ color: C.muted, fontSize: 13.5, lineHeight: 1.5, margin: "0 0 12px" }}>{block.summary}</p>}
+      {Array.isArray(block.phases) && block.phases.length > 0 && (
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
+          {block.phases.map((p, i) => (
+            <span key={i} style={{ fontSize: 11.5, color: C.muted, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 9px" }}>
+              <b style={{ color: C.text }}>{p.name}</b>{p.weeks ? ` · wk ${p.weeks}` : ""}
+            </span>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+        {block.weeks.map((wk, wi) => (
+          <WeekRow key={wi} wk={wk} wi={wi} isCurrent={wi === curWeek} selected={selected} setSelected={setSelected} />
+        ))}
+      </div>
+
+      {sel && selWeek && (
+        <Card style={{ borderLeft: `4px solid ${selZone.color}`, marginTop: 16 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+            <div style={{ fontSize: 17, fontWeight: 800 }}>Wk {selWeek.weekNumber} · {sel.day} · {sel.title}</div>
+            <div style={{ fontFamily: C.mono, color: selZone.color, fontWeight: 700 }}>{selZone.label} · {sel.duration}</div>
+          </div>
+          <p style={{ lineHeight: 1.6, margin: "10px 0 0", fontSize: 15 }}>{sel.description}</p>
+          {sel.type === "ride" && (sel.steps?.length > 0
+            ? <button onClick={() => downloadWorkout(selected.week, selected.day)} className="ghost" style={{ ...ghostBtn, marginTop: 14, color: C.text, borderColor: C.brand }}>⬇ Garmin workout (.FIT) · {sel.steps.length} steps</button>
+            : <button onClick={() => prepareWeek(selected.week)} className="ghost" style={{ ...ghostBtn, marginTop: 14 }} disabled={preparing === selected.week}>{preparing === selected.week ? "Preparing week…" : "Prepare this week's intervals →"}</button>
+          )}
+        </Card>
+      )}
+
+      {block.nutrition && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 18, marginTop: 16 }}>
+          <Card>
+            <Eyebrow>Fuel</Eyebrow>
+            <div style={{ display: "flex", gap: 18, marginTop: 12, flexWrap: "wrap" }}>
+              <Stat label="Training day" value={block.nutrition.trainingDayCalories} unit="kcal" />
+              <Stat label="Rest day" value={block.nutrition.restDayCalories} unit="kcal" />
+              <Stat label="Protein" value={block.nutrition.proteinG} unit="g/day" color={C.brand} />
+            </div>
+            <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.5, marginTop: 14 }}>{block.nutrition.notes}</p>
+          </Card>
+          <Card style={{ borderColor: C.brand, background: C.brandSoft }}>
+            <Eyebrow>Coach's note</Eyebrow>
+            <p style={{ lineHeight: 1.6, marginTop: 10, fontSize: 15 }}>{block.coachNote}</p>
+          </Card>
+        </div>
+      )}
+    </>
+  );
+}
+
+function WeekRow({ wk, wi, isCurrent, selected, setSelected }) {
+  return (
+    <div style={{ background: isCurrent ? C.surfaceHi : C.surface, border: `1px solid ${isCurrent ? C.brand : C.border}`, borderRadius: 12, padding: 12 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8, gap: 8, flexWrap: "wrap" }}>
+        <div style={{ fontSize: 13, fontWeight: 700 }}>
+          Week {wk.weekNumber} <span style={{ color: C.muted, fontWeight: 600 }}>· {wk.phase}</span>
+          {isCurrent && <span style={{ marginLeft: 8, fontSize: 10, color: C.brand, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1 }}>This week</span>}
+        </div>
+        <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>{wk.startDate ? wk.startDate.slice(5) : ""}{wk.targetHours ? ` · ${wk.targetHours}h` : ""}</div>
+      </div>
+      {wk.focus && <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>{wk.focus}</div>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 5 }}>
+        {(wk.days || []).map((d, di) => {
+          const z = ZONES[d.intensity] || ZONES.rest;
+          const active = selected && selected.week === wi && selected.day === di;
+          return (
+            <button key={di} onClick={() => setSelected(active ? null : { week: wi, day: di })} className="daycard"
+              style={{ textAlign: "left", background: active ? C.bg : "transparent", border: `1px solid ${active ? z.color : C.border}`, borderTop: `3px solid ${z.color}`, borderRadius: 7, padding: "7px 5px", cursor: "pointer", color: C.text, minHeight: 50, display: "flex", flexDirection: "column", gap: 2, overflow: "hidden" }}>
+              <span style={{ fontSize: 10.5, fontWeight: 800 }}>{d.day}</span>
+              <span style={{ fontSize: 9.5, color: C.muted, lineHeight: 1.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.type === "rest" ? "Rest" : d.title}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+const PROG_ORDER = ["endurance", "tempo", "threshold", "vo2", "recovery", "strength"];
+
+function ProgressionCard({ progression, ftpSuggestion, onBumpFtp }) {
+  const p = progression || {};
+  return (
+    <Card>
+      <Eyebrow>Form — progression levels</Eyebrow>
+      <div style={{ color: C.muted, fontSize: 12.5, marginTop: 4, marginBottom: 12 }}>Per-zone fitness (1–10), moved by your ride feedback. Your plan leans into strong zones and eases the rest.</div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {PROG_ORDER.map((z) => {
+          const zc = ZONES[z] || ZONES.rest; const lvl = p[z] ?? 5;
+          return (
+            <div key={z} style={{ display: "flex", alignItems: "center", gap: 10 }}>
+              <div style={{ width: 78, fontSize: 12, color: C.muted }}>{zc.label}</div>
+              <div style={{ flex: 1, height: 8, background: C.surfaceHi, borderRadius: 999, overflow: "hidden" }}>
+                <div style={{ width: `${lvl * 10}%`, height: "100%", background: zc.color, borderRadius: 999 }} />
+              </div>
+              <div style={{ width: 34, textAlign: "right", fontFamily: C.mono, fontSize: 13, fontWeight: 700 }}>{lvl}</div>
+            </div>
+          );
+        })}
+      </div>
+      {ftpSuggestion && (
+        <div style={{ marginTop: 14, background: C.brandSoft, border: `1px solid ${C.brand}`, borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 13 }}>Recent rides suggest your FTP may be <b style={{ color: C.brand }}>~{ftpSuggestion.suggested}W</b> ({ftpSuggestion.basis}).</div>
+          <button onClick={() => onBumpFtp(ftpSuggestion.suggested)} className="primary" style={{ ...primaryBtn, width: "auto", padding: "8px 16px", fontSize: 13 }}>Update FTP</button>
+        </div>
+      )}
+    </Card>
+  );
+}
+
+const FB = { nailed: { label: "Nailed it", color: "#34D399" }, ok: { label: "Completed", color: "#A3E635" }, hard: { label: "Hard", color: "#FBBF24" }, missed: { label: "Missed", color: "#FB7185" } };
+
+function FeedbackStrip({ s, onFeedback }) {
+  if (s.feedback) {
+    const f = FB[s.feedback] || {};
+    return <div style={{ marginTop: 8, fontSize: 12, color: C.muted }}>How it went: <span style={{ color: f.color, fontWeight: 700 }}>{f.label}</span>{s.feedbackZone ? ` · ${s.feedbackZone}` : ""}</div>;
+  }
+  return (
+    <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+      <span style={{ fontSize: 11.5, color: C.muted }}>How'd it go?</span>
+      {Object.keys(FB).map((k) => (
+        <button key={k} onClick={() => onFeedback(s.id, k)} className="ghost" style={{ ...ghostBtn, padding: "3px 9px", fontSize: 11.5, color: FB[k].color, borderColor: C.border }}>{FB[k].label}</button>
+      ))}
+    </div>
+  );
+}
+
+function suggestFtpClient(sessions, profile) {
+  const ftp = profile?.currentFTP;
+  if (!ftp) return null;
+  const cutoff = Date.now() - 35 * 86400000;
+  let best = null;
+  for (const s of sessions || []) {
+    if (!s.avgPower || !s.durationSec) continue;
+    const when = new Date(s.date || s.addedAt).getTime();
+    if (when < cutoff) continue;
+    if (s.durationSec >= 35 * 60 && s.avgPower >= ftp * 0.97) { if (!best || s.avgPower > best.avgPower) best = s; }
+  }
+  if (!best) return null;
+  const suggested = Math.round(best.avgPower / 0.95);
+  if (suggested <= ftp + 4) return null;
+  return { suggested, basis: `held ${best.avgPower}W for ${Math.round(best.durationSec / 60)} min` };
+}
+
+const CAT_COLORS = {
+  recovery: "#4FB0E3", endurance: "#34D399", tempo: "#A3E635", sweetspot: "#86C232",
+  threshold: "#FBBF24", vo2: "#FB7185", anaerobic: "#F472B6", sprint: "#C084FC", specialty: "#7C5CFF",
+};
+
+function IntervalProfile({ steps }) {
+  const total = steps.reduce((a, s) => a + s.durationSec, 0) || 1;
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", gap: 1, height: 46, marginTop: 12 }}>
+      {steps.map((s, i) => {
+        const p = s.powerHighPct || 160;
+        const h = Math.max(8, Math.min(100, (p / 150) * 100));
+        const w = Math.max(0.4, (s.durationSec / total) * 100);
+        const col = s.intensity === "rest" ? C.faint : (s.intensity === "warmup" || s.intensity === "cooldown") ? C.muted : C.brand;
+        return <div key={i} title={`${s.name} · ${Math.round(s.durationSec / 60) || "<1"}min`} style={{ width: `${w}%`, height: `${h}%`, background: col, borderRadius: "2px 2px 0 0" }} />;
+      })}
+    </div>
+  );
+}
+
+function LibraryCard() {
+  const [filter, setFilter] = useState("all");
+  const [open, setOpen] = useState(null);
+  const cats = CATEGORIES.filter((c) => LIBRARY.some((w) => w.cat === c.key));
+  const list = filter === "all" ? LIBRARY : LIBRARY.filter((w) => w.cat === filter);
+  const dl = (id) => {
+    const a = document.createElement("a"); a.href = `/api/library/workout?id=${id}`; a.download = "";
+    document.body.appendChild(a); a.click(); a.remove();
+  };
+  return (
+    <Card>
+      <Eyebrow>Workout library</Eyebrow>
+      <div style={{ color: C.muted, fontSize: 12.5, marginTop: 4, marginBottom: 12 }}>Canonical power sessions, scaled to your FTP. Tap one to preview or send to your Garmin.</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+        {[{ key: "all", label: "All" }, ...cats].map((c) => (
+          <button key={c.key} onClick={() => setFilter(c.key)} className="ghost"
+            style={{ ...ghostBtn, padding: "4px 10px", fontSize: 12, ...(filter === c.key ? { borderColor: C.brand, color: C.text } : {}) }}>{c.label}</button>
+        ))}
+      </div>
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {list.map((w) => {
+          const col = CAT_COLORS[w.cat] || C.brand; const isOpen = open === w.id;
+          return (
+            <div key={w.id} style={{ background: C.bg, border: `1px solid ${isOpen ? col : C.border}`, borderLeft: `4px solid ${col}`, borderRadius: 10, padding: "10px 12px" }}>
+              <div onClick={() => setOpen(isOpen ? null : w.id)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 700 }}>{w.name}</div>
+                  <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>{CATEGORIES.find((c) => c.key === w.cat)?.label} · {w.durationMin}min · {w.tss} TSS</div>
+                </div>
+                <span style={{ color: C.muted, fontSize: 12 }}>{isOpen ? "▲" : "▼"}</span>
+              </div>
+              {isOpen && (
+                <div>
+                  <p style={{ fontSize: 13.5, lineHeight: 1.5, margin: "10px 0 0" }}>{w.description}</p>
+                  <IntervalProfile steps={w.steps} />
+                  <button onClick={() => dl(w.id)} className="ghost" style={{ ...ghostBtn, marginTop: 10, color: C.text, borderColor: C.brand }}>⬇ Garmin workout (.FIT) · {w.durationMin}min</button>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </Card>
+  );
+}
+
+function PMCChart({ series, projection }) {
+  const all = [...series, ...(projection?.series || [])];
+  if (all.length < 2) return null;
+  const W = 600, H = 150, pad = 8;
+  const maxV = Math.max(...all.map((d) => Math.max(d.ctl, d.atl)), 10);
+  const x = (i) => pad + (i / (all.length - 1)) * (W - 2 * pad);
+  const y = (v) => H - pad - (v / maxV) * (H - 2 * pad);
+  const ctlPts = series.map((d, i) => `${x(i)},${y(d.ctl)}`).join(" ");
+  const atlPts = series.map((d, i) => `${x(i)},${y(d.atl)}`).join(" ");
+  const area = `${x(0)},${H - pad} ${ctlPts} ${x(series.length - 1)},${H - pad}`;
+  const off = series.length - 1;
+  const projPts = projection ? [series[series.length - 1], ...projection.series].map((d, i) => `${x(off + i)},${y(d.ctl)}`).join(" ") : "";
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} width="100%" preserveAspectRatio="none" style={{ display: "block", marginTop: 12, height: 150 }}>
+      <polygon points={area} fill="rgba(124,92,255,0.16)" />
+      <polyline points={ctlPts} fill="none" stroke={C.brand} strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
+      {projPts && <polyline points={projPts} fill="none" stroke={C.brand} strokeWidth="2" strokeDasharray="5 4" opacity="0.7" vectorEffect="non-scaling-stroke" />}
+      <polyline points={atlPts} fill="none" stroke="#FB7185" strokeWidth="2" vectorEffect="non-scaling-stroke" />
+    </svg>
+  );
+}
+
+function AnalyticsCard({ sessions, profile }) {
+  const pmc = useMemo(() => computePMC(sessions, profile), [sessions, profile]);
+  const [read, setRead] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  if (pmc.empty) {
+    return (
+      <Card>
+        <Eyebrow>Fitness · Fatigue · Form</Eyebrow>
+        <div style={{ color: C.muted, fontSize: 13, marginTop: 8, lineHeight: 1.5 }}>Log a few rides and your fitness, fatigue and form chart builds here — the picture that tells you when to push and when to back off.</div>
+      </Card>
+    );
+  }
+  const c = pmc.current;
+  const fmt = (v) => (v > 0 ? `+${Math.round(v)}` : `${Math.round(v)}`);
+  const getRead = async () => {
+    setLoading(true); setRead("");
+    try { const r = await fetch("/api/form", { method: "POST" }); const d = await r.json(); setRead(r.ok ? d.read : d.error || "Unavailable."); }
+    catch { setRead("Unavailable — try again."); } finally { setLoading(false); }
+  };
+  const steepRamp = pmc.rampPerWeek > 8;
+  return (
+    <Card>
+      <Eyebrow>Fitness · Fatigue · Form</Eyebrow>
+      <div style={{ display: "flex", gap: 20, marginTop: 12, flexWrap: "wrap" }}>
+        <Stat label="Fitness (CTL)" value={Math.round(c.ctl)} unit="" />
+        <Stat label="Fatigue (ATL)" value={Math.round(c.atl)} unit="" color="#FB7185" />
+        <Stat label="Form (TSB)" value={fmt(c.tsb)} unit="" color={pmc.status.color} />
+      </div>
+      <div style={{ fontSize: 13, marginTop: 8 }}><span style={{ color: pmc.status.color, fontWeight: 700 }}>{pmc.status.label}</span> <span style={{ color: C.muted }}>— {pmc.status.note}.</span></div>
+      <PMCChart series={pmc.series} projection={pmc.projection} />
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: C.muted, marginTop: 6, flexWrap: "wrap", gap: 8 }}>
+        <span><span style={{ color: C.brand }}>━</span> Fitness&nbsp;&nbsp;<span style={{ color: "#FB7185" }}>━</span> Fatigue&nbsp;&nbsp;<span style={{ color: C.brand }}>┄</span> projected</span>
+        <span style={{ fontFamily: C.mono, color: steepRamp ? "#FBBF24" : C.muted }}>ramp {pmc.rampPerWeek > 0 ? "+" : ""}{pmc.rampPerWeek}/wk{steepRamp ? " ⚠ steep" : ""}</span>
+      </div>
+      {pmc.projection && pmc.daysToEvent != null && (
+        <div style={{ marginTop: 10, background: C.surfaceHi, borderRadius: 10, padding: "10px 12px", fontSize: 13, lineHeight: 1.5 }}>
+          Holding current load you'll reach <b style={{ color: C.brand }}>~{Math.round(pmc.projection.eventCtl)} fitness</b> on event day at form <b style={{ color: pmc.projection.eventTsb > 0 ? "#34D399" : "#FBBF24" }}>{fmt(pmc.projection.eventTsb)}</b> ({pmc.daysToEvent} days out). {pmc.projection.eventTsb < 5 ? "Ease the final 1–2 weeks so form swings positive and you arrive fresh." : "That's race-ready freshness — protect the taper."}
+        </div>
+      )}
+      <button onClick={getRead} disabled={loading} className="ghost" style={{ ...ghostBtn, marginTop: 12, borderColor: C.brand, color: C.text }}>{loading ? "Reading…" : "Coach's read on my form"}</button>
+      {read && <p style={{ lineHeight: 1.6, marginTop: 12, fontSize: 14.5 }}>{read}</p>}
+    </Card>
+  );
+}
