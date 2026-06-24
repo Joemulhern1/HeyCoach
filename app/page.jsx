@@ -35,6 +35,14 @@ const input = { background: C.bg, border: `1px solid ${C.border}`, color: C.text
 const primaryBtn = { background: C.brand, color: "#fff", border: "none", borderRadius: 12, padding: "14px 0", fontSize: 16, fontWeight: 700, cursor: "pointer", width: "100%" };
 const ghostBtn = { background: "transparent", border: `1px solid ${C.border}`, color: C.muted, borderRadius: 10, padding: "8px 14px", fontSize: 13, cursor: "pointer", fontWeight: 600 };
 
+// Parse a response safely — if the server returns non-JSON (timeout/crash page),
+// surface a readable message instead of a cryptic "Unexpected token" error.
+async function jget(r) {
+  const t = await r.text();
+  try { return JSON.parse(t); }
+  catch { return { error: r.status === 504 || /timed out|timeout/i.test(t) ? "That took too long — please try again." : (t || "").replace(/<[^>]*>/g, "").trim().slice(0, 140) || "Server error — try again." }; }
+}
+
 const Eyebrow = ({ children }) => <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: C.muted, fontWeight: 700 }}>{children}</div>;
 const Card = ({ children, style }) => <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, ...style }}>{children}</div>;
 const Field = ({ label, children }) => (
@@ -58,6 +66,8 @@ export default function HeyCoach() {
   const [weights, setWeights] = useState([]);
   const [progression, setProgression] = useState(null);
   const [me, setMe] = useState(null);
+  const [events, setEvents] = useState([]);
+  const [availability, setAvailability] = useState([]);
   const [strava, setStrava] = useState({ configured: false, connected: false, athlete: null });
   const [screen, setScreen] = useState("onboarding");
   const [busy, setBusy] = useState(false);
@@ -65,9 +75,9 @@ export default function HeyCoach() {
 
   useEffect(() => {
     Promise.all([
-      fetch("/api/state").then((r) => r.json()),
-      fetch("/api/strava/status").then((r) => r.json()).catch(() => ({})),
-      fetch("/api/auth/me").then((r) => r.json()).catch(() => ({})),
+      fetch("/api/state").then((r) => jget(r)),
+      fetch("/api/strava/status").then((r) => jget(r)).catch(() => ({})),
+      fetch("/api/auth/me").then((r) => jget(r)).catch(() => ({})),
     ]).then(([s, st, m]) => {
       if (m?.user) setMe(m.user);
       if (s.profile) { setProfile(migrate(s.profile)); setScreen("dashboard"); }
@@ -75,6 +85,8 @@ export default function HeyCoach() {
       if (s.sessions) setSessions(s.sessions);
       if (s.weights) setWeights(s.weights);
       if (s.progression) setProgression(s.progression);
+      if (s.events) setEvents(s.events);
+      if (s.availability) setAvailability(s.availability);
       if (st) setStrava((p) => ({ ...p, ...st }));
     }).catch(() => {}).finally(() => setLoading(false));
     const q = new URLSearchParams(window.location.search).get("strava");
@@ -87,18 +99,25 @@ export default function HeyCoach() {
     try {
       if (saveFirst) {
         const r = await fetch("/api/profile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(profile) });
-        if (!r.ok) throw new Error((await r.json()).error || "Couldn't save your goal.");
+        if (!r.ok) throw new Error((await jget(r)).error || "Couldn't save your goal.");
       }
       const r = await fetch("/api/block", { method: "POST" });
-      const data = await r.json();
+      const data = await jget(r);
       if (!r.ok) throw new Error(data.error || "Couldn't build the plan.");
-      setBlock(data.block); setScreen("dashboard");
+      setBlock(data.block); if (data.events) setEvents(data.events); setScreen("dashboard");
     } catch (e) { setError(e.message); } finally { setBusy(false); }
   };
 
   const saveProfile = async (next) => {
     setProfile(next);
     await fetch("/api/profile", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(next) });
+  };
+
+  const rebuildTimer = useRef(null);
+  const scheduleRebuild = () => {
+    if (!block) return; // don't auto-build before the first plan exists
+    clearTimeout(rebuildTimer.current);
+    rebuildTimer.current = setTimeout(() => build(false), 1800);
   };
 
   if (loading) return <Shell><Spinner label="Loading your coach…" /></Shell>;
@@ -110,7 +129,7 @@ export default function HeyCoach() {
       {screen === "dashboard" && (
         <Dashboard
           profile={profile} block={block} setBlock={setBlock} sessions={sessions} weights={weights} strava={strava} busy={busy}
-          progression={progression} setProgression={setProgression}
+          progression={progression} setProgression={setProgression} events={events} setEvents={setEvents} availability={availability} setAvailability={setAvailability} scheduleRebuild={scheduleRebuild}
           onEdit={() => setScreen("onboarding")} onRegenerate={() => build(false)}
           setSessions={setSessions} setWeights={setWeights} setError={setError} saveProfile={saveProfile}
         />
@@ -197,7 +216,7 @@ function Onboarding({ profile, setProfile, onBuild, busy }) {
   );
 }
 
-function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, onEdit, onRegenerate, setSessions, setWeights, setError, saveProfile, progression, setProgression }) {
+function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, onEdit, onRegenerate, setSessions, setWeights, setError, saveProfile, progression, setProgression, events, setEvents, availability, setAvailability, scheduleRebuild }) {
   const [selected, setSelected] = useState(null); // { week, day }
   const [q, setQ] = useState(""); const [answer, setAnswer] = useState(""); const [asking, setAsking] = useState(false);
   const [uploading, setUploading] = useState(false); const [shotting, setShotting] = useState(false);
@@ -213,7 +232,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
     if (!q.trim()) return; setAsking(true); setAnswer("");
     try {
       const r = await fetch("/api/coach", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: q }) });
-      const d = await r.json(); setAnswer(r.ok ? d.answer : d.error || "Coach is unavailable.");
+      const d = await jget(r); setAnswer(r.ok ? d.answer : d.error || "Coach is unavailable.");
     } catch { setAnswer("Coach is unavailable — try again."); } finally { setAsking(false); }
   };
 
@@ -223,7 +242,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
     try {
       const fd = new FormData(); files.forEach((f) => fd.append("files", f));
       const r = await fetch("/api/sessions", { method: "POST", body: fd });
-      const d = await r.json(); if (!r.ok) throw new Error(d.error || "Upload failed.");
+      const d = await jget(r); if (!r.ok) throw new Error(d.error || "Upload failed.");
       setSessions(d.sessions); if (d.errors?.length) setError(d.errors.join(" · "));
     } catch (err) { setError(err.message); } finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
   };
@@ -234,33 +253,33 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
     try {
       const fd = new FormData(); fd.append("image", file);
       const r = await fetch("/api/sessions/screenshot", { method: "POST", body: fd });
-      const d = await r.json(); if (!r.ok) throw new Error(d.error || "Couldn't read screenshot.");
+      const d = await jget(r); if (!r.ok) throw new Error(d.error || "Couldn't read screenshot.");
       setSessions(d.sessions);
     } catch (err) { setError(err.message); } finally { setShotting(false); if (shotRef.current) shotRef.current.value = ""; }
   };
 
   const addManual = async (body) => {
     const r = await fetch("/api/sessions/manual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const d = await r.json(); if (r.ok) { setSessions(d.sessions); setShowManual(false); }
+    const d = await jget(r); if (r.ok) { setSessions(d.sessions); setShowManual(false); }
   };
 
   const syncStrava = async () => {
     setSyncing(true); setError("");
     try {
       const r = await fetch("/api/strava/sync", { method: "POST" });
-      const d = await r.json(); if (!r.ok) throw new Error(d.error || "Sync failed.");
+      const d = await jget(r); if (!r.ok) throw new Error(d.error || "Sync failed.");
       setSessions(d.sessions);
     } catch (err) { setError(err.message); } finally { setSyncing(false); }
   };
 
   const removeSession = async (id) => {
     const r = await fetch("/api/sessions", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
-    const d = await r.json(); if (r.ok) setSessions(d.sessions);
+    const d = await jget(r); if (r.ok) setSessions(d.sessions);
   };
 
   const sendFeedback = async (sessionId, outcome) => {
     const r = await fetch("/api/feedback", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sessionId, outcome }) });
-    const d = await r.json(); if (r.ok) { setSessions(d.sessions); setProgression(d.progression); }
+    const d = await jget(r); if (r.ok) { setSessions(d.sessions); setProgression(d.progression); }
   };
 
   const bumpFtp = (newFtp) => saveProfile({ ...profile, currentFTP: newFtp });
@@ -269,11 +288,11 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
   const logWeight = async () => {
     const w = Number(kg); if (!w) return;
     const r = await fetch("/api/weight", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ kg: w }) });
-    const d = await r.json(); if (r.ok) { setWeights(d.weights); setKg(""); }
+    const d = await jget(r); if (r.ok) { setWeights(d.weights); setKg(""); }
   };
   const removeWeight = async (id) => {
     const r = await fetch("/api/weight", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) });
-    const d = await r.json(); if (r.ok) setWeights(d.weights);
+    const d = await jget(r); if (r.ok) setWeights(d.weights);
   };
 
   const downloadWorkout = (w, d) => {
@@ -285,20 +304,30 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
     setPreparing(weekIndex); setError("");
     try {
       const r = await fetch("/api/block/week", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ weekIndex }) });
-      const d = await r.json(); if (!r.ok) throw new Error(d.error || "Couldn't prepare that week.");
+      const d = await jget(r); if (!r.ok) throw new Error(d.error || "Couldn't prepare that week.");
       setBlock(d.block);
     } catch (e) { setError(e.message); } finally { setPreparing(null); }
   };
 
+  const dayAction = async (body) => {
+    setError("");
+    const r = await fetch("/api/block/day", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const d = await jget(r); if (r.ok) { setBlock(d.block); if (d.progression) setProgression(d.progression); } else setError(d.error);
+  };
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <Card><GoalHeader profile={profile} weights={weights} onEdit={onEdit} /></Card>
+      <Card><GoalHeader profile={profile} weights={weights} onEdit={onEdit} events={events} /></Card>
+
+      <EventsCard events={events} setEvents={setEvents} setError={setError} scheduleRebuild={scheduleRebuild} />
+
+      <AvailabilityCard availability={availability} setAvailability={setAvailability} setError={setError} scheduleRebuild={scheduleRebuild} />
 
       {block ? (
         <BlockView
           block={block} curWeek={curWeek} selected={selected} setSelected={setSelected}
           sel={sel} selZone={selZone} onRegenerate={onRegenerate} busy={busy}
-          downloadWorkout={downloadWorkout} prepareWeek={prepareWeek} preparing={preparing}
+          downloadWorkout={downloadWorkout} prepareWeek={prepareWeek} preparing={preparing} events={events} dayAction={dayAction}
         />
       ) : (
         <Card><div style={{ textAlign: "center", padding: "12px 0" }}>
@@ -382,8 +411,9 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
   );
 }
 
-function GoalHeader({ profile, weights, onEdit }) {
-  const wo = weeksOut(profile.eventDate);
+function GoalHeader({ profile, weights, onEdit, events }) {
+  const next = nextEventOf(events, profile);
+  const wo = next ? weeksOut(next.date) : null;
   const cw = latestWeight(weights, profile);
   const ftpPct = Math.min(100, Math.max(0, ((profile.currentFTP - 150) / (profile.targetFTP - 150)) * 100));
   const wRange = profile.currentWeightKg - profile.targetWeightKg;
@@ -393,9 +423,9 @@ function GoalHeader({ profile, weights, onEdit }) {
   return (
     <div style={{ display: "flex", flexWrap: "wrap", gap: 18, alignItems: "center", justifyContent: "space-between" }}>
       <div>
-        <Eyebrow>Goal</Eyebrow>
-        <div style={{ fontSize: 20, fontWeight: 800, marginTop: 4 }}>{profile.eventName}</div>
-        <div style={{ color: C.muted, fontSize: 13, marginTop: 2 }}><span style={{ fontFamily: C.mono, color: C.text }}>{wo}</span> weeks out · {profile.eventDate}</div>
+        <Eyebrow>Next event</Eyebrow>
+        <div style={{ fontSize: 20, fontWeight: 800, marginTop: 4 }}>{next ? next.name : "No event set"}</div>
+        <div style={{ color: C.muted, fontSize: 13, marginTop: 2 }}>{next ? <><span style={{ fontFamily: C.mono, color: C.text }}>{wo}</span> weeks out · {next.date}{next.priority ? ` · ${next.priority}-race` : ""}</> : "Add one below and the plan builds around it"}</div>
         <div style={{ marginTop: 10, fontSize: 12, color: C.muted }}>Power-to-weight</div>
         <div style={{ fontFamily: C.mono, fontSize: 18, fontWeight: 700 }}>{curWkg} <span style={{ color: C.muted, fontSize: 13 }}>→</span> <span style={{ color: C.brand }}>{projWkg}</span> <span style={{ color: C.muted, fontSize: 12 }}>W/kg</span></div>
       </div>
@@ -406,6 +436,14 @@ function GoalHeader({ profile, weights, onEdit }) {
       <button onClick={onEdit} className="ghost" style={ghostBtn}>Edit goal</button>
     </div>
   );
+}
+
+function nextEventOf(events, profile) {
+  const today = new Date().toISOString().slice(0, 10);
+  const future = (events || []).filter((e) => e.date >= today).sort((a, b) => a.date.localeCompare(b.date));
+  if (future.length) return future[0];
+  if (profile?.eventDate && profile.eventDate >= today) return { name: profile.eventName || "Goal event", date: profile.eventDate, priority: "A" };
+  return null;
 }
 
 const Bar = ({ label, left, right, pct, a }) => (
@@ -489,12 +527,13 @@ function currentWeekIdx(block) {
   return 0;
 }
 
-function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRegenerate, busy, downloadWorkout, prepareWeek, preparing }) {
+function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRegenerate, busy, downloadWorkout, prepareWeek, preparing, events, dayAction }) {
+  const [moveOpen, setMoveOpen] = useState(false);
   const selWeek = selected ? block.weeks[selected.week] : null;
   return (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
-        <div><Eyebrow>Training plan</Eyebrow><div style={{ fontSize: 17, fontWeight: 800, marginTop: 2 }}>{block.weeks.length} weeks to your event</div></div>
+        <div><Eyebrow>Training plan</Eyebrow><div style={{ fontSize: 17, fontWeight: 800, marginTop: 2 }}>{busy ? "Re-planning around your changes…" : `${block.weeks.length} weeks · rolling`}</div></div>
         <button onClick={onRegenerate} className="ghost" style={ghostBtn} disabled={busy}>{busy ? "…" : "↻ Rebuild"}</button>
       </div>
       {block.summary && <p style={{ color: C.muted, fontSize: 13.5, lineHeight: 1.5, margin: "0 0 12px" }}>{block.summary}</p>}
@@ -509,21 +548,42 @@ function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRege
       )}
 
       <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {block.weeks.map((wk, wi) => (
-          <WeekRow key={wi} wk={wk} wi={wi} isCurrent={wi === curWeek} selected={selected} setSelected={setSelected} />
-        ))}
+        {block.weeks.map((wk, wi) => {
+          const next = block.weeks[wi + 1];
+          const wkEvents = (events || []).filter((e) => e.date >= wk.startDate && (!next || e.date < next.startDate));
+          return <WeekRow key={wi} wk={wk} wi={wi} isCurrent={wi === curWeek} selected={selected} setSelected={setSelected} wkEvents={wkEvents} />;
+        })}
       </div>
 
       {sel && selWeek && (
-        <Card style={{ borderLeft: `4px solid ${selZone.color}`, marginTop: 16 }}>
+        <Card style={{ borderLeft: `4px solid ${sel.status === "missed" ? "#FB7185" : sel.status === "off" ? C.faint : selZone.color}`, marginTop: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-            <div style={{ fontSize: 17, fontWeight: 800 }}>Wk {selWeek.weekNumber} · {sel.day} · {sel.title}</div>
+            <div style={{ fontSize: 17, fontWeight: 800, textDecoration: sel.status === "missed" ? "line-through" : "none", color: sel.status === "missed" ? C.muted : C.text }}>Wk {selWeek.weekNumber} · {sel.day} · {sel.title}</div>
             <div style={{ fontFamily: C.mono, color: selZone.color, fontWeight: 700 }}>{selZone.label} · {sel.duration}</div>
           </div>
+          {sel.status === "missed" && <div style={{ color: "#FB7185", fontSize: 12, fontWeight: 700, marginTop: 6 }}>✕ Marked missed</div>}
           <p style={{ lineHeight: 1.6, margin: "10px 0 0", fontSize: 15 }}>{sel.description}</p>
-          {sel.type === "ride" && (sel.steps?.length > 0
+          {sel.type === "ride" && sel.status !== "off" && (sel.steps?.length > 0
             ? <button onClick={() => downloadWorkout(selected.week, selected.day)} className="ghost" style={{ ...ghostBtn, marginTop: 14, color: C.text, borderColor: C.brand }}>⬇ Garmin workout (.FIT) · {sel.steps.length} steps</button>
             : <button onClick={() => prepareWeek(selected.week)} className="ghost" style={{ ...ghostBtn, marginTop: 14 }} disabled={preparing === selected.week}>{preparing === selected.week ? "Preparing week…" : "Prepare this week's intervals →"}</button>
+          )}
+          {sel.status !== "off" && (
+            <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
+              <button onClick={() => setMoveOpen((v) => !v)} className="ghost" style={{ ...ghostBtn, fontSize: 12.5 }}>↔ Move</button>
+              {sel.status === "missed"
+                ? <button onClick={() => dayAction({ weekIndex: selected.week, dayIndex: selected.day, action: "clear" })} className="ghost" style={{ ...ghostBtn, fontSize: 12.5 }}>Undo missed</button>
+                : <button onClick={() => dayAction({ weekIndex: selected.week, dayIndex: selected.day, action: "missed" })} className="ghost" style={{ ...ghostBtn, fontSize: 12.5, color: "#FB7185", borderColor: "#FB7185" }}>✕ Mark missed</button>}
+            </div>
+          )}
+          {moveOpen && (
+            <div style={{ marginTop: 10 }}>
+              <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 6 }}>Swap with which day?</div>
+              <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
+                {selWeek.days.map((d, ti) => ti !== selected.day && (
+                  <button key={ti} onClick={() => { dayAction({ weekIndex: selected.week, dayIndex: selected.day, targetDayIndex: ti, action: "swap" }); setMoveOpen(false); }} className="ghost" style={{ ...ghostBtn, padding: "5px 10px", fontSize: 12 }}>{d.day}</button>
+                ))}
+              </div>
+            </div>
           )}
         </Card>
       )}
@@ -549,7 +609,8 @@ function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRege
   );
 }
 
-function WeekRow({ wk, wi, isCurrent, selected, setSelected }) {
+function WeekRow({ wk, wi, isCurrent, selected, setSelected, wkEvents }) {
+  const PRIO = { A: "#FB7185", B: "#FBBF24", C: "#A3E635" };
   return (
     <div style={{ background: isCurrent ? C.surfaceHi : C.surface, border: `1px solid ${isCurrent ? C.brand : C.border}`, borderRadius: 12, padding: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8, gap: 8, flexWrap: "wrap" }}>
@@ -559,16 +620,26 @@ function WeekRow({ wk, wi, isCurrent, selected, setSelected }) {
         </div>
         <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>{wk.startDate ? wk.startDate.slice(5) : ""}{wk.targetHours ? ` · ${wk.targetHours}h` : ""}</div>
       </div>
+      {(wkEvents || []).map((e) => (
+        <div key={e.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: C.bg, border: `1px solid ${PRIO[e.priority] || C.brand}`, borderRadius: 8, padding: "3px 9px", marginBottom: 8, marginRight: 6, fontSize: 11.5 }}>
+          <span style={{ width: 7, height: 7, borderRadius: 999, background: PRIO[e.priority] || C.brand }} />
+          <b>🏁 {e.name}</b> <span style={{ color: C.muted }}>· {e.priority}</span>
+        </div>
+      ))}
       {wk.focus && <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>{wk.focus}</div>}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 5 }}>
         {(wk.days || []).map((d, di) => {
           const z = ZONES[d.intensity] || ZONES.rest;
           const active = selected && selected.week === wi && selected.day === di;
+          const off = d.status === "off";
+          const missed = d.status === "missed";
+          const topColor = off ? C.faint : missed ? "#FB7185" : z.color;
+          const label = off ? (/illness/i.test(d.title) ? "🤒 Off" : "✈ Off") : d.type === "rest" ? "Rest" : d.title;
           return (
             <button key={di} onClick={() => setSelected(active ? null : { week: wi, day: di })} className="daycard"
-              style={{ textAlign: "left", background: active ? C.bg : "transparent", border: `1px solid ${active ? z.color : C.border}`, borderTop: `3px solid ${z.color}`, borderRadius: 7, padding: "7px 5px", cursor: "pointer", color: C.text, minHeight: 50, display: "flex", flexDirection: "column", gap: 2, overflow: "hidden" }}>
-              <span style={{ fontSize: 10.5, fontWeight: 800 }}>{d.day}</span>
-              <span style={{ fontSize: 9.5, color: C.muted, lineHeight: 1.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{d.type === "rest" ? "Rest" : d.title}</span>
+              style={{ textAlign: "left", background: active ? C.bg : off ? "rgba(90,107,115,0.12)" : "transparent", border: `1px solid ${active ? topColor : C.border}`, borderTop: `3px solid ${topColor}`, borderRadius: 7, padding: "7px 5px", cursor: "pointer", color: C.text, minHeight: 50, display: "flex", flexDirection: "column", gap: 2, overflow: "hidden", opacity: off ? 0.7 : 1 }}>
+              <span style={{ fontSize: 10.5, fontWeight: 800, color: missed ? "#FB7185" : C.text }}>{d.day}{missed ? " ✕" : ""}</span>
+              <span style={{ fontSize: 9.5, color: C.muted, lineHeight: 1.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: missed ? "line-through" : "none" }}>{label}</span>
             </button>
           );
         })}
@@ -645,7 +716,7 @@ function suggestFtpClient(sessions, profile) {
 
 const CAT_COLORS = {
   recovery: "#4FB0E3", endurance: "#34D399", tempo: "#A3E635", sweetspot: "#86C232",
-  threshold: "#FBBF24", vo2: "#FB7185", anaerobic: "#F472B6", sprint: "#C084FC", specialty: "#7C5CFF",
+  threshold: "#FBBF24", vo2: "#FB7185", anaerobic: "#F472B6", sprint: "#C084FC", specialty: "#7C5CFF", test: "#4FB0E3",
 };
 
 function IntervalProfile({ steps }) {
@@ -748,7 +819,7 @@ function AnalyticsCard({ sessions, profile }) {
   const fmt = (v) => (v > 0 ? `+${Math.round(v)}` : `${Math.round(v)}`);
   const getRead = async () => {
     setLoading(true); setRead("");
-    try { const r = await fetch("/api/form", { method: "POST" }); const d = await r.json(); setRead(r.ok ? d.read : d.error || "Unavailable."); }
+    try { const r = await fetch("/api/form", { method: "POST" }); const d = await jget(r); setRead(r.ok ? d.read : d.error || "Unavailable."); }
     catch { setRead("Unavailable — try again."); } finally { setLoading(false); }
   };
   const steepRamp = pmc.rampPerWeek > 8;
@@ -773,6 +844,103 @@ function AnalyticsCard({ sessions, profile }) {
       )}
       <button onClick={getRead} disabled={loading} className="ghost" style={{ ...ghostBtn, marginTop: 12, borderColor: C.brand, color: C.text }}>{loading ? "Reading…" : "Coach's read on my form"}</button>
       {read && <p style={{ lineHeight: 1.6, marginTop: 12, fontSize: 14.5 }}>{read}</p>}
+    </Card>
+  );
+}
+
+const EV_PRIO = { A: "#FB7185", B: "#FBBF24", C: "#A3E635" };
+const EV_RATING = { strong: { label: "💪 Strong", color: "#34D399" }, solid: { label: "👍 Solid", color: "#A3E635" }, off: { label: "😐 Off-day", color: "#FBBF24" } };
+
+function EventsCard({ events, setEvents, setError, scheduleRebuild }) {
+  const [f, setF] = useState({ name: "", date: "", priority: "A" });
+  const today = new Date().toISOString().slice(0, 10);
+  const list = [...(events || [])].sort((a, b) => a.date.localeCompare(b.date));
+
+  const add = async () => {
+    if (!f.name.trim() || !f.date) return;
+    const r = await fetch("/api/events", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f) });
+    const d = await jget(r); if (r.ok) { setEvents(d.events); setF({ name: "", date: "", priority: "A" }); scheduleRebuild?.(); } else setError(d.error);
+  };
+  const remove = async (id) => { const r = await fetch("/api/events", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) }); const d = await jget(r); if (r.ok) { setEvents(d.events); scheduleRebuild?.(); } };
+  const rate = async (id, rating) => { const r = await fetch("/api/events", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, rating }) }); const d = await jget(r); if (r.ok) setEvents(d.events); };
+
+  return (
+    <Card>
+      <Eyebrow>Events</Eyebrow>
+      <div style={{ color: C.muted, fontSize: 12.5, marginTop: 4, marginBottom: 12 }}>Add your races (A = peak for it, B = sharpen, C = train through). The plan periodises around all of them — then keeps rolling.</div>
+
+      {list.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+          {list.map((e) => {
+            const past = e.date < today;
+            const wo = Math.round((new Date(e.date) - Date.now()) / (7 * 86400000));
+            return (
+              <div key={e.id} style={{ background: C.bg, border: `1px solid ${C.border}`, borderLeft: `4px solid ${EV_PRIO[e.priority] || C.brand}`, borderRadius: 10, padding: "10px 12px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>{e.name} <span style={{ fontSize: 10.5, color: EV_PRIO[e.priority], fontWeight: 800 }}>{e.priority}</span></div>
+                    <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>{e.date} · {past ? "done" : `${wo} wk`}</div>
+                  </div>
+                  <button onClick={() => remove(e.id)} className="ghost" style={{ ...ghostBtn, padding: "4px 9px", fontSize: 12 }}>✕</button>
+                </div>
+                {past && (e.rating
+                  ? <div style={{ marginTop: 8, fontSize: 12, color: EV_RATING[e.rating]?.color, fontWeight: 700 }}>{EV_RATING[e.rating]?.label}</div>
+                  : <div style={{ marginTop: 8, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}><span style={{ fontSize: 11.5, color: C.muted }}>How'd it go?</span>{Object.keys(EV_RATING).map((k) => <button key={k} onClick={() => rate(e.id, k)} className="ghost" style={{ ...ghostBtn, padding: "3px 9px", fontSize: 11.5, color: EV_RATING[k].color }}>{EV_RATING[k].label}</button>)}</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr auto auto", gap: 8 }}>
+        <input style={{ ...input }} placeholder="Event name (e.g. County Champs)" value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} />
+        <input type="date" style={{ ...input, width: "auto" }} value={f.date} onChange={(e) => setF({ ...f, date: e.target.value })} />
+        <select style={{ ...input, width: "auto" }} value={f.priority} onChange={(e) => setF({ ...f, priority: e.target.value })}>
+          <option value="A">A</option><option value="B">B</option><option value="C">C</option>
+        </select>
+      </div>
+      <button onClick={add} className="ghost" style={{ ...ghostBtn, marginTop: 10, borderColor: C.brand, color: C.text }}>+ Add event</button>
+      {list.length > 0 && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 10 }}>After changing events, hit <b>↻ Rebuild</b> on the plan to re-periodise around them.</div>}
+    </Card>
+  );
+}
+
+function AvailabilityCard({ availability, setAvailability, setError, scheduleRebuild }) {
+  const [f, setF] = useState({ type: "holiday", start: "", end: "" });
+  const list = [...(availability || [])].sort((a, b) => a.start.localeCompare(b.start));
+  const add = async () => {
+    if (!f.start || !f.end) return;
+    const r = await fetch("/api/availability", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(f) });
+    const d = await jget(r); if (r.ok) { setAvailability(d.availability); setF({ type: "holiday", start: "", end: "" }); scheduleRebuild?.(); } else setError(d.error);
+  };
+  const remove = async (id) => { const r = await fetch("/api/availability", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id }) }); const d = await jget(r); if (r.ok) { setAvailability(d.availability); scheduleRebuild?.(); } };
+  return (
+    <Card>
+      <Eyebrow>Time off</Eyebrow>
+      <div style={{ color: C.muted, fontSize: 12.5, marginTop: 4, marginBottom: 12 }}>Add holidays or illness. The plan keeps those days clear and eases around them — deload into a holiday, rebuild gently after illness.</div>
+      {list.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
+          {list.map((a) => (
+            <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>{a.type === "illness" ? "🤒 Illness" : "✈ Holiday"}{a.notes ? ` · ${a.notes}` : ""}</div>
+                <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>{a.start} → {a.end}</div>
+              </div>
+              <button onClick={() => remove(a.id)} className="ghost" style={{ ...ghostBtn, padding: "4px 9px", fontSize: 12 }}>✕</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ display: "grid", gridTemplateColumns: "auto 1fr 1fr", gap: 8, alignItems: "center" }}>
+        <select style={{ ...input, width: "auto" }} value={f.type} onChange={(e) => setF({ ...f, type: e.target.value })}>
+          <option value="holiday">Holiday</option><option value="illness">Illness</option>
+        </select>
+        <input type="date" style={input} value={f.start} onChange={(e) => setF({ ...f, start: e.target.value })} />
+        <input type="date" style={input} value={f.end} onChange={(e) => setF({ ...f, end: e.target.value })} />
+      </div>
+      <button onClick={add} className="ghost" style={{ ...ghostBtn, marginTop: 10, borderColor: C.brand, color: C.text }}>+ Add time off</button>
+      {list.length > 0 && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 10 }}>After adding, hit <b>↻ Rebuild</b> to re-plan around it.</div>}
     </Card>
   );
 }

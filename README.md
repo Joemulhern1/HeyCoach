@@ -31,6 +31,16 @@ can ask anything. Multi-user, self-hosted: each member gets their own login and 
 - **Ask your coach** — training or nutrition, in plain language.
 - **Strava auto-sync (optional)** — see "Strava" below; off by default.
 
+## Events & the forever coach
+
+Add your races on the dashboard with an A/B/C priority (A = peak/taper for it, B = short sharpen, C = train through). The plan periodises around **all** of them and then keeps rolling past the last one into a transition/base block — it never dead-ends. After a race, rate it (Strong / Solid / Off-day) and the coach factors that in. Change events, then hit **Rebuild** to re-periodise.
+
+**Time off (holidays & illness):** add date ranges on the dashboard. Those days are forced clear and the plan eases around them (deload into a holiday, rebuild gently after illness). **Moving & missed:** tap any planned day to swap it with another day in the week, or mark it **missed** — a miss nudges that zone's progression level down, just like a logged ride.
+
+**Auto-updating:** change events or time off and the plan re-periodises itself moments later — no manual Rebuild needed; rapid edits batch into one regeneration.
+
+Note: building the plan is a single model call (skeleton for the whole horizon); a given week's detailed intervals fill on demand when you open a ride — this keeps generation fast and within serverless time limits.
+
 ## Members & logins
 
 HeyCoach is multi-user. On first run, visit **/setup** to create the admin account (you). After that, manage members at **/admin** — add a friend with a username + temporary password, and they sign in at **/login** and start fresh. Every account's plan, sessions, weights, progression and Strava connection are stored under their own key and never visible to others. Passwords are scrypt-hashed; sessions are HMAC-signed cookies. **Set a stable `SESSION_SECRET`** (see `.env.example`) — it signs those sessions.
@@ -84,6 +94,9 @@ app/
   login / setup / admin          pages: sign-in, first-admin, member management
   api/auth/*                     login, logout, setup, me
   api/admin/users                list / add / disable / delete members (admin only)
+  api/events                     add / rate / remove races (A/B/C)
+  api/availability               holidays & illness (no-training ranges)
+  api/block/day                  move (swap) a session, or mark it missed
   api/state, profile, coach
   api/block + /block/week        multi-week plan + on-demand week detail
   api/feedback                   ride outcome -> progression update
@@ -101,7 +114,7 @@ lib/
   coach.js      plan + Q&A prompts, screenshot extraction, weight/deficit logic
   parse.js        .fit/.tcx/.gpx -> session summary, rough TSS
   progression.js  per-zone levels (deterministic), zone inference, FTP-bump heuristic
-  library.js      18 curated power workouts (science-based), scaled to FTP
+  library.js      56 curated power workouts (science-based), scaled to FTP
   analytics.js    Performance Management Chart (CTL/ATL/TSB), forecast
   fit.js        structured workout -> Garmin .fit (official @garmin/fitsdk)
   strava.js     OAuth + activity fetch (optional)
