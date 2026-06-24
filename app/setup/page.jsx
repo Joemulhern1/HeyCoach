@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
-const T = { bg: "#0F171B", border: "#2C3D47", text: "#EAF0F1", muted: "#8DA0A8", brand: "#7C5CFF" };
-const inp = { background: "#0F171B", border: `1px solid ${T.border}`, color: T.text, borderRadius: 10, padding: "11px 12px", fontSize: 15, outline: "none", width: "100%" };
+const T = { bg: "#F4F6FA", surface: "#FFFFFF", border: "#E4E9F0", text: "#18212F", muted: "#64748B", brand: "#6366F1" };
+const inp = { background: "#F8FAFC", border: `1px solid ${T.border}`, color: T.text, borderRadius: 10, padding: "11px 12px", fontSize: 15, outline: "none", width: "100%" };
 const btn = { background: T.brand, color: "#fff", border: "none", borderRadius: 12, padding: "13px 0", fontSize: 16, fontWeight: 700, cursor: "pointer", width: "100%" };
 
 export default function Setup() {

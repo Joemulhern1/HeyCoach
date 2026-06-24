@@ -1,8 +1,8 @@
 "use client";
 import { useEffect, useState } from "react";
 
-const T = { bg: "#0F171B", surface: "#1A262D", border: "#2C3D47", text: "#EAF0F1", muted: "#8DA0A8", brand: "#7C5CFF", mono: "ui-monospace, Menlo, monospace" };
-const inp = { background: "#0F171B", border: `1px solid ${T.border}`, color: T.text, borderRadius: 10, padding: "10px 12px", fontSize: 14, outline: "none", width: "100%" };
+const T = { bg: "#F4F6FA", surface: "#FFFFFF", border: "#E4E9F0", text: "#18212F", muted: "#64748B", brand: "#6366F1", mono: "ui-monospace, Menlo, monospace" };
+const inp = { background: "#F8FAFC", border: `1px solid ${T.border}`, color: T.text, borderRadius: 10, padding: "10px 12px", fontSize: 14, outline: "none", width: "100%" };
 const btn = { background: T.brand, color: "#fff", border: "none", borderRadius: 10, padding: "10px 16px", fontSize: 14, fontWeight: 700, cursor: "pointer" };
 const ghost = { background: "transparent", border: `1px solid ${T.border}`, color: T.muted, borderRadius: 8, padding: "5px 10px", fontSize: 12, cursor: "pointer", fontWeight: 600 };
 

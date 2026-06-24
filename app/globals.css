@@ -1,12 +1,13 @@
 :root {
-  --bg: #0F171B;
-  --surface: #1A262D;
-  --surfaceHi: #22323B;
-  --border: #2C3D47;
-  --text: #EAF0F1;
-  --muted: #8DA0A8;
-  --faint: #5A6B73;
-  --brand: #7C5CFF;
+  --bg: #F4F6FA;
+  --surface: #FFFFFF;
+  --surfaceHi: #EEF2F7;
+  --border: #E4E9F0;
+  --text: #18212F;
+  --muted: #64748B;
+  --faint: #94A3B8;
+  --brand: #6366F1;
+  --brandSoft: #EEF0FE;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 * { box-sizing: border-box; }
@@ -14,14 +15,44 @@ html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
 body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
 button { font-family: inherit; }
 input, select { font-family: inherit; }
-button:focus-visible, input:focus-visible, select:focus-visible {
-  outline: 2px solid var(--brand); outline-offset: 2px;
-}
+button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 input:focus, select:focus { border-color: var(--brand) !important; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse { 0%,100%{opacity:.5} 50%{opacity:1} }
 .pulse { animation: pulse 1.2s ease-in-out infinite; }
-.primary:hover { filter: brightness(1.08); }
-.ghost:hover { border-color: var(--brand); color: var(--text); }
+.primary:hover { filter: brightness(1.06); }
+.ghost:hover { border-color: var(--brand); color: var(--brand); }
 .daycard:hover, .daytoggle:hover { border-color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
+
+/* ---- App shell ---- */
+.app { display: flex; min-height: 100vh; background: var(--bg); }
+.sidebar {
+  width: 236px; flex: 0 0 236px; background: var(--surface); border-right: 1px solid var(--border);
+  display: flex; flex-direction: column; position: sticky; top: 0; height: 100vh;
+  padding: 16px 14px; z-index: 60;
+}
+.brandmark { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 17px; letter-spacing: -0.4px; padding: 6px 8px 16px; color: var(--text); }
+.navlabel { font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); font-weight: 700; padding: 14px 11px 6px; }
+.navitem {
+  display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 9px;
+  color: var(--muted); font-weight: 600; font-size: 14.5px; cursor: pointer; border: none;
+  background: transparent; width: 100%; text-align: left; text-decoration: none;
+  transition: background .12s, color .12s;
+}
+.navitem:hover { background: var(--surfaceHi); color: var(--text); }
+.navitem.active { background: var(--brandSoft); color: var(--brand); }
+.navitem .ic { width: 20px; text-align: center; font-size: 15px; flex-shrink: 0; }
+.sidefoot { margin-top: auto; border-top: 1px solid var(--border); padding-top: 8px; }
+.content { flex: 1 1 auto; min-width: 0; }
+.content-inner { max-width: 1060px; margin: 0 auto; padding: 30px 34px 90px; }
+.topbar { display: none; align-items: center; gap: 12px; padding: 11px 16px; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 40; }
+.hamb { background: transparent; border: 1px solid var(--border); border-radius: 8px; padding: 6px 11px; font-size: 16px; cursor: pointer; color: var(--text); line-height: 1; }
+.scrim { display: none; }
+@media (max-width: 900px) {
+  .sidebar { position: fixed; left: -264px; transition: left .22s ease; box-shadow: 0 8px 40px rgba(15,23,42,.16); }
+  .sidebar.open { left: 0; }
+  .topbar { display: flex; }
+  .content-inner { padding: 18px 16px 96px; }
+  .scrim.show { display: block; position: fixed; inset: 0; background: rgba(15,23,42,.34); z-index: 50; }
+}

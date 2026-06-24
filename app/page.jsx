@@ -5,13 +5,13 @@ import { LIBRARY, CATEGORIES } from "../lib/library.js";
 import { computePMC } from "../lib/analytics.js";
 
 const ZONES = {
-  recovery: { label: "Recovery", color: "#4FB0E3" },
-  endurance: { label: "Endurance", color: "#34D399" },
-  tempo: { label: "Tempo", color: "#A3E635" },
-  threshold: { label: "Threshold", color: "#FBBF24" },
-  vo2: { label: "VO2 Max", color: "#FB7185" },
-  strength: { label: "Strength", color: "#A78BFA" },
-  rest: { label: "Rest", color: "#5A6B73" },
+  recovery: { label: "Recovery", color: "#0EA5E9" },
+  endurance: { label: "Endurance", color: "#10B981" },
+  tempo: { label: "Tempo", color: "#65A30D" },
+  threshold: { label: "Threshold", color: "#F59E0B" },
+  vo2: { label: "VO2 Max", color: "#EF4444" },
+  strength: { label: "Strength", color: "#8B5CF6" },
+  rest: { label: "Rest", color: "#94A3B8" },
 };
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const DEFAULT_PROFILE = {
@@ -29,7 +29,7 @@ const DEFAULT_PROFILE = {
 const C = {
   bg: "var(--bg)", surface: "var(--surface)", surfaceHi: "var(--surfaceHi)", border: "var(--border)",
   text: "var(--text)", muted: "var(--muted)", faint: "var(--faint)", brand: "var(--brand)",
-  brandSoft: "rgba(124,92,255,0.14)", mono: "var(--mono)",
+  brandSoft: "var(--brandSoft)", mono: "var(--mono)",
 };
 const input = { background: C.bg, border: `1px solid ${C.border}`, color: C.text, borderRadius: 10, padding: "10px 12px", fontSize: 15, outline: "none", width: "100%" };
 const primaryBtn = { background: C.brand, color: "#fff", border: "none", borderRadius: 12, padding: "14px 0", fontSize: 16, fontWeight: 700, cursor: "pointer", width: "100%" };
@@ -72,6 +72,7 @@ export default function HeyCoach() {
   const [screen, setScreen] = useState("onboarding");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const [nav, setNav] = useState("today");
 
   useEffect(() => {
     Promise.all([
@@ -120,43 +121,84 @@ export default function HeyCoach() {
     rebuildTimer.current = setTimeout(() => build(false), 1800);
   };
 
-  if (loading) return <Shell><Spinner label="Loading your coach…" /></Shell>;
+  if (loading) return <CenterWrap><Spinner label="Loading your coach…" /></CenterWrap>;
+
+  if (screen === "onboarding") return (
+    <CenterWrap>
+      {error && <ErrBanner>{error}</ErrBanner>}
+      <Onboarding profile={profile} setProfile={setProfile} onBuild={() => build(true)} busy={busy} />
+    </CenterWrap>
+  );
 
   return (
-    <Shell me={me}>
-      {error && <div style={{ background: "rgba(251,113,133,0.12)", border: `1px solid ${ZONES.vo2.color}`, borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 14 }}>{error}</div>}
-      {screen === "onboarding" && <Onboarding profile={profile} setProfile={setProfile} onBuild={() => build(true)} busy={busy} />}
-      {screen === "dashboard" && (
-        <Dashboard
-          profile={profile} block={block} setBlock={setBlock} sessions={sessions} weights={weights} strava={strava} busy={busy}
-          progression={progression} setProgression={setProgression} events={events} setEvents={setEvents} availability={availability} setAvailability={setAvailability} scheduleRebuild={scheduleRebuild}
-          onEdit={() => setScreen("onboarding")} onRegenerate={() => build(false)}
-          setSessions={setSessions} setWeights={setWeights} setError={setError} saveProfile={saveProfile}
-        />
-      )}
-    </Shell>
+    <AppShell me={me} nav={nav} setNav={setNav}>
+      {error && <ErrBanner>{error}</ErrBanner>}
+      <Dashboard
+        profile={profile} block={block} setBlock={setBlock} sessions={sessions} weights={weights} strava={strava} busy={busy}
+        progression={progression} setProgression={setProgression} events={events} setEvents={setEvents} availability={availability} setAvailability={setAvailability} scheduleRebuild={scheduleRebuild}
+        onEdit={() => setScreen("onboarding")} onRegenerate={() => build(false)}
+        setSessions={setSessions} setWeights={setWeights} setError={setError} saveProfile={saveProfile}
+        nav={nav} setNav={setNav} me={me}
+      />
+    </AppShell>
   );
 }
 
-function Shell({ children, me }) {
-  const logout = async () => { await fetch("/api/auth/logout", { method: "POST" }); window.location.href = "/login"; };
+const Logo = () => <span style={{ width: 22, height: 22, borderRadius: 7, background: "linear-gradient(135deg,#6366F1,#8B5CF6)", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 900, flexShrink: 0 }}>H</span>;
+const ErrBanner = ({ children }) => <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 14 }}>{children}</div>;
+
+function CenterWrap({ children }) {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text }}>
-      <div style={{ maxWidth: 880, margin: "0 auto", padding: "28px 20px 64px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 28 }}>
-          <span style={{ width: 10, height: 10, background: C.brand, borderRadius: 3, transform: "rotate(45deg)" }} />
-          <span style={{ fontSize: 18, fontWeight: 800, letterSpacing: -0.4 }}><span style={{ color: C.muted }}>Hey</span>Coach</span>
-          {me ? (
-            <div style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 10 }}>
-              {me.role === "admin" && <a href="/admin" style={{ ...ghostBtn, padding: "5px 11px", fontSize: 12, textDecoration: "none" }}>Admin</a>}
-              <span style={{ fontSize: 12.5, color: C.muted }}>{me.displayName || me.username}</span>
-              <button onClick={logout} className="ghost" style={{ ...ghostBtn, padding: "5px 11px", fontSize: 12 }}>Log out</button>
-            </div>
-          ) : (
-            <span style={{ marginLeft: "auto", fontSize: 11, color: C.faint, fontFamily: C.mono, letterSpacing: 1 }}>COACH · NUTRITION</span>
-          )}
-        </div>
+      <div style={{ maxWidth: 600, margin: "0 auto", padding: "26px 20px 64px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, fontWeight: 800, fontSize: 17, letterSpacing: -0.4, marginBottom: 26 }}><Logo /> HeyCoach</div>
         {children}
+      </div>
+    </div>
+  );
+}
+
+const NAV = [
+  { label: "Train" },
+  { id: "today", label: "Today", ic: "🏠" },
+  { id: "calendar", label: "Calendar", ic: "🗓" },
+  { id: "workouts", label: "Workouts", ic: "🚴" },
+  { label: "Track" },
+  { id: "analytics", label: "Analytics", ic: "📈" },
+  { id: "nutrition", label: "Nutrition", ic: "🍽" },
+  { id: "activity", label: "Activity", ic: "📋" },
+  { label: "Ask" },
+  { id: "coach", label: "Coach", ic: "💬" },
+];
+
+function AppShell({ me, nav, setNav, children }) {
+  const [open, setOpen] = useState(false);
+  const logout = async () => { await fetch("/api/auth/logout", { method: "POST" }); window.location.href = "/login"; };
+  const go = (id) => { setNav(id); setOpen(false); };
+  return (
+    <div className="app">
+      <div className={"scrim" + (open ? " show" : "")} onClick={() => setOpen(false)} />
+      <aside className={"sidebar" + (open ? " open" : "")}>
+        <div className="brandmark"><Logo /> HeyCoach</div>
+        {NAV.map((n, i) => n.id
+          ? <button key={n.id} className={"navitem" + (nav === n.id ? " active" : "")} onClick={() => go(n.id)}><span className="ic">{n.ic}</span>{n.label}</button>
+          : <div key={"s" + i} className="navlabel">{n.label}</div>
+        )}
+        <div className="sidefoot">
+          {me?.role === "admin" && <a href="/admin" className="navitem"><span className="ic">⚙️</span>Admin</a>}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 11px" }}>
+            <span style={{ width: 30, height: 30, borderRadius: "50%", background: C.brandSoft, color: C.brand, display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{(me?.displayName || me?.username || "?").slice(0, 1).toUpperCase()}</span>
+            <div style={{ minWidth: 0 }}><div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{me?.displayName || me?.username || "Athlete"}</div></div>
+          </div>
+          <button className="navitem" onClick={logout}><span className="ic">⎋</span>Log out</button>
+        </div>
+      </aside>
+      <div className="content">
+        <div className="topbar">
+          <button className="hamb" onClick={() => setOpen(true)}>☰</button>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: 15 }}><Logo /> HeyCoach</div>
+        </div>
+        <div className="content-inner">{children}</div>
       </div>
     </div>
   );
@@ -216,7 +258,7 @@ function Onboarding({ profile, setProfile, onBuild, busy }) {
   );
 }
 
-function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, onEdit, onRegenerate, setSessions, setWeights, setError, saveProfile, progression, setProgression, events, setEvents, availability, setAvailability, scheduleRebuild }) {
+function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, onEdit, onRegenerate, setSessions, setWeights, setError, saveProfile, progression, setProgression, events, setEvents, availability, setAvailability, scheduleRebuild, nav, setNav, me }) {
   const [selected, setSelected] = useState(null); // { week, day }
   const [q, setQ] = useState(""); const [answer, setAnswer] = useState(""); const [asking, setAsking] = useState(false);
   const [uploading, setUploading] = useState(false); const [shotting, setShotting] = useState(false);
@@ -315,99 +357,170 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
     const d = await jget(r); if (r.ok) { setBlock(d.block); if (d.progression) setProgression(d.progression); } else setError(d.error);
   };
 
+  const todayIso = new Date().toISOString().slice(0, 10);
+  const isoFromWeek = (start, di) => new Date(new Date(start + "T00:00:00Z").getTime() + di * 86400000).toISOString().slice(0, 10);
+  let today = null, todayPos = null;
+  if (block) block.weeks.forEach((w, wi) => w.days.forEach((d, di) => { if ((d.date || isoFromWeek(w.startDate, di)) === todayIso) { today = d; todayPos = { week: wi, day: di }; } }));
+  const tz = today ? (ZONES[today.intensity] || ZONES.rest) : null;
+
+  const Head = ({ title, sub }) => (
+    <div style={{ marginBottom: 2 }}>
+      <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, letterSpacing: -0.4 }}>{title}</h1>
+      {sub && <div style={{ color: C.muted, fontSize: 14, marginTop: 3 }}>{sub}</div>}
+    </div>
+  );
+
+  const buildPrompt = (
+    <Card><div style={{ textAlign: "center", padding: "12px 0" }}>
+      <p style={{ color: C.muted, marginBottom: 14 }}>No plan yet.</p>
+      <button onClick={onRegenerate} className="primary" style={{ ...primaryBtn, width: "auto", padding: "12px 22px" }} disabled={busy}>{busy ? "Building…" : "Build my plan"}</button>
+    </div></Card>
+  );
+
+  const sessionsCard = (
+    <Card>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
+        <div>
+          <Eyebrow>Completed sessions</Eyebrow>
+          <div style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>The coach reads these and adapts your next week.</div>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={() => shotRef.current?.click()} className="ghost" style={ghostBtn} disabled={shotting}>{shotting ? "Reading…" : "📷 Screenshot"}</button>
+          <button onClick={() => fileRef.current?.click()} className="ghost" style={ghostBtn} disabled={uploading}>{uploading ? "Reading…" : "📁 File"}</button>
+          <button onClick={() => setShowManual((v) => !v)} className="ghost" style={ghostBtn}>✎ Manual</button>
+          {strava.configured && (strava.connected
+            ? <button onClick={syncStrava} className="ghost" style={ghostBtn} disabled={syncing}>{syncing ? "Syncing…" : "↻ Strava"}</button>
+            : <a href="/api/strava/connect" className="ghost" style={{ ...ghostBtn, textDecoration: "none" }}>Connect Strava</a>)}
+          <input ref={shotRef} type="file" accept="image/*" onChange={uploadShot} style={{ display: "none" }} />
+          <input ref={fileRef} type="file" accept=".fit,.tcx,.gpx" multiple onChange={uploadFiles} style={{ display: "none" }} />
+        </div>
+      </div>
+      {showManual && <ManualForm onAdd={addManual} onCancel={() => setShowManual(false)} />}
+      {strava.connected && (
+        <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 12.5, color: C.muted }}>
+          <input type="checkbox" checked={!!profile.useStravaForCoaching} onChange={(e) => saveProfile({ ...profile, useStravaForCoaching: e.target.checked })} />
+          Use Strava activities for AI coaching (otherwise they're log-only — see Strava's API terms)
+        </label>
+      )}
+      {sessions.length > 0 ? (
+        <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
+          {sessions.slice(0, 10).map((s) => (
+            <div key={s.id} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
+                  <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>{s.date ? s.date.slice(0, 10) : "—"} · {s.source}</div>
+                </div>
+                <Metric v={fmtMins(s.durationSec)} l="time" />
+                {s.distanceKm != null && <Metric v={`${s.distanceKm}km`} l="dist" />}
+                {s.avgPower != null && <Metric v={`${s.avgPower}W`} l="avg" />}
+                {s.avgHr != null && <Metric v={`${s.avgHr}`} l="bpm" />}
+                <button onClick={() => removeSession(s.id)} className="ghost" style={{ ...ghostBtn, padding: "4px 9px", fontSize: 12 }}>✕</button>
+              </div>
+              <FeedbackStrip s={s} onFeedback={sendFeedback} />
+            </div>
+          ))}
+        </div>
+      ) : <div style={{ marginTop: 14, color: C.muted, fontSize: 13.5 }}>No rides logged yet — import a .fit/.tcx/.gpx, drop a screenshot, or add one manually.</div>}
+    </Card>
+  );
+
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
-      <Card><GoalHeader profile={profile} weights={weights} onEdit={onEdit} events={events} /></Card>
-
-      <EventsCard events={events} setEvents={setEvents} setError={setError} scheduleRebuild={scheduleRebuild} />
-
-      <AvailabilityCard availability={availability} setAvailability={setAvailability} setError={setError} scheduleRebuild={scheduleRebuild} />
-
-      {block ? (
-        <BlockView
-          block={block} curWeek={curWeek} selected={selected} setSelected={setSelected}
-          sel={sel} selZone={selZone} onRegenerate={onRegenerate} busy={busy}
-          downloadWorkout={downloadWorkout} prepareWeek={prepareWeek} preparing={preparing} events={events} dayAction={dayAction}
-        />
-      ) : (
-        <Card><div style={{ textAlign: "center", padding: "12px 0" }}>
-          <p style={{ color: C.muted, marginBottom: 14 }}>No plan yet.</p>
-          <button onClick={onRegenerate} className="primary" style={{ ...primaryBtn, width: "auto", padding: "12px 22px" }} disabled={busy}>{busy ? "Building…" : "Build my plan"}</button>
-        </div></Card>
-      )}
-
-      {/* Fitness · Fatigue · Form analytics */}
-      <AnalyticsCard sessions={sessions} profile={profile} />
-
-      {/* Form: progression levels + FTP nudge */}
-      {block && <ProgressionCard progression={progression} ftpSuggestion={ftpSuggestion} onBumpFtp={bumpFtp} />}
-
-      {/* Weight tracking */}
-      <WeightCard profile={profile} weights={weights} kg={kg} setKg={setKg} logWeight={logWeight} removeWeight={removeWeight} />
-
-      {/* Completed sessions */}
-      <Card>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: 10 }}>
-          <div>
-            <Eyebrow>Completed sessions</Eyebrow>
-            <div style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>The coach reads these and adapts your next week.</div>
-          </div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button onClick={() => shotRef.current?.click()} className="ghost" style={ghostBtn} disabled={shotting}>{shotting ? "Reading…" : "📷 Screenshot"}</button>
-            <button onClick={() => fileRef.current?.click()} className="ghost" style={ghostBtn} disabled={uploading}>{uploading ? "Reading…" : "📁 File"}</button>
-            <button onClick={() => setShowManual((v) => !v)} className="ghost" style={ghostBtn}>✎ Manual</button>
-            {strava.configured && (strava.connected
-              ? <button onClick={syncStrava} className="ghost" style={ghostBtn} disabled={syncing}>{syncing ? "Syncing…" : "↻ Strava"}</button>
-              : <a href="/api/strava/connect" className="ghost" style={{ ...ghostBtn, textDecoration: "none" }}>Connect Strava</a>)}
-            <input ref={shotRef} type="file" accept="image/*" onChange={uploadShot} style={{ display: "none" }} />
-            <input ref={fileRef} type="file" accept=".fit,.tcx,.gpx" multiple onChange={uploadFiles} style={{ display: "none" }} />
-          </div>
-        </div>
-
-        {showManual && <ManualForm onAdd={addManual} onCancel={() => setShowManual(false)} />}
-
-        {strava.connected && (
-          <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 12.5, color: C.muted }}>
-            <input type="checkbox" checked={!!profile.useStravaForCoaching} onChange={(e) => saveProfile({ ...profile, useStravaForCoaching: e.target.checked })} />
-            Use Strava activities for AI coaching (otherwise they're log-only — see Strava's API terms)
-          </label>
-        )}
-
-        {sessions.length > 0 && (
-          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
-            {sessions.slice(0, 10).map((s) => (
-              <div key={s.id} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
-                    <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>{s.date ? s.date.slice(0, 10) : "—"} · {s.source}</div>
-                  </div>
-                  <Metric v={fmtMins(s.durationSec)} l="time" />
-                  {s.distanceKm != null && <Metric v={`${s.distanceKm}km`} l="dist" />}
-                  {s.avgPower != null && <Metric v={`${s.avgPower}W`} l="avg" />}
-                  {s.avgHr != null && <Metric v={`${s.avgHr}`} l="bpm" />}
-                  <button onClick={() => removeSession(s.id)} className="ghost" style={{ ...ghostBtn, padding: "4px 9px", fontSize: 12 }}>✕</button>
+      {nav === "today" && (<>
+        <Head title={`Hi${me?.displayName || me?.username ? ", " + (me.displayName || me.username) : ""} 👋`} sub="Here's where you stand today." />
+        <Card><GoalHeader profile={profile} weights={weights} onEdit={onEdit} events={events} /></Card>
+        {block ? (
+          <Card style={tz ? { borderLeft: `4px solid ${tz.color}` } : {}}>
+            <Eyebrow>Today · {todayIso}</Eyebrow>
+            {today ? (
+              <div style={{ marginTop: 8 }}>
+                <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+                  <div style={{ fontSize: 19, fontWeight: 800 }}>{today.title}</div>
+                  <div style={{ fontFamily: C.mono, color: tz.color, fontWeight: 700 }}>{tz.label} · {today.duration}</div>
                 </div>
-                <FeedbackStrip s={s} onFeedback={sendFeedback} />
+                <p style={{ color: C.muted, marginTop: 8, lineHeight: 1.6, marginBottom: 0 }}>{today.description}</p>
+                <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
+                  {today.type === "ride" && today.steps?.length > 0 && <button onClick={() => downloadWorkout(todayPos.week, todayPos.day)} className="ghost" style={ghostBtn}>⬇ Garmin (.FIT)</button>}
+                  <button onClick={() => { setSelected(todayPos); setNav("calendar"); }} className="ghost" style={ghostBtn}>Open in calendar →</button>
+                </div>
               </div>
-            ))}
+            ) : <p style={{ color: C.muted, marginTop: 8, marginBottom: 0 }}>Nothing scheduled today — enjoy the rest.</p>}
+          </Card>
+        ) : buildPrompt}
+        <AnalyticsCard sessions={sessions} profile={profile} />
+      </>)}
+
+      {nav === "calendar" && (<>
+        <Head title="Calendar" sub="Your plan, races and time off — periodised and rolling." />
+        <EventsCard events={events} setEvents={setEvents} setError={setError} scheduleRebuild={scheduleRebuild} />
+        <AvailabilityCard availability={availability} setAvailability={setAvailability} setError={setError} scheduleRebuild={scheduleRebuild} />
+        {block ? (
+          <BlockView
+            block={block} curWeek={curWeek} selected={selected} setSelected={setSelected}
+            sel={sel} selZone={selZone} onRegenerate={onRegenerate} busy={busy}
+            downloadWorkout={downloadWorkout} prepareWeek={prepareWeek} preparing={preparing} events={events} dayAction={dayAction}
+          />
+        ) : buildPrompt}
+      </>)}
+
+      {nav === "workouts" && (<>
+        <Head title="Workouts" sub="56 science-based sessions — preview the profile and send to your Garmin." />
+        <LibraryCard />
+      </>)}
+
+      {nav === "analytics" && (<>
+        <Head title="Analytics" sub="Fitness, fatigue and form — plus your zone progression." />
+        <AnalyticsCard sessions={sessions} profile={profile} />
+        {block && <ProgressionCard progression={progression} ftpSuggestion={ftpSuggestion} onBumpFtp={bumpFtp} />}
+        <WeightCard profile={profile} weights={weights} kg={kg} setKg={setKg} logWeight={logWeight} removeWeight={removeWeight} />
+      </>)}
+
+      {nav === "nutrition" && (<>
+        <Head title="Nutrition" sub="Fuelling for your training load." />
+        {block?.nutrition ? <NutritionView n={block.nutrition} /> : buildPrompt}
+        <WeightCard profile={profile} weights={weights} kg={kg} setKg={setKg} logWeight={logWeight} removeWeight={removeWeight} />
+      </>)}
+
+      {nav === "activity" && (<>
+        <Head title="Activity" sub="Log your rides — the coach reads them and adapts." />
+        {sessionsCard}
+      </>)}
+
+      {nav === "coach" && (<>
+        <Head title="Coach" sub="Ask anything about your training, nutrition or form." />
+        <Card>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <input style={{ ...input, flex: 1, minWidth: 200 }} placeholder="e.g. I'm 1.5kg down but Thursday felt flat — adjust?" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && ask()} />
+            <button onClick={ask} disabled={asking} className="primary" style={{ ...primaryBtn, width: "auto", padding: "0 20px", opacity: asking ? 0.6 : 1 }}>{asking ? "…" : "Ask"}</button>
           </div>
-        )}
-      </Card>
-
-      {/* Workout library */}
-      <LibraryCard />
-
-      {/* Ask coach */}
-      <Card>
-        <Eyebrow>Ask your coach</Eyebrow>
-        <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-          <input style={{ ...input, flex: 1, minWidth: 200 }} placeholder="e.g. I'm 1.5kg down but Thursday felt flat — adjust?" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && ask()} />
-          <button onClick={ask} disabled={asking} className="primary" style={{ ...primaryBtn, width: "auto", padding: "0 20px", opacity: asking ? 0.6 : 1 }}>{asking ? "…" : "Ask"}</button>
-        </div>
-        {(asking || answer) && <p style={{ lineHeight: 1.6, marginTop: 14, fontSize: 15 }}>{asking ? <span className="pulse" style={{ color: C.muted }}>Coach is thinking…</span> : answer}</p>}
-      </Card>
+          {(asking || answer) && <p style={{ lineHeight: 1.6, marginTop: 14, fontSize: 15, marginBottom: 0 }}>{asking ? <span className="pulse" style={{ color: C.muted }}>Coach is thinking…</span> : answer}</p>}
+        </Card>
+      </>)}
     </div>
+  );
+}
+
+function NutritionView({ n }) {
+  const Stat = ({ label, value, unit, color }) => (
+    <div style={{ flex: 1, minWidth: 150, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "16px 18px" }}>
+      <div style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>{label}</div>
+      <div style={{ fontSize: 26, fontWeight: 800, fontFamily: C.mono, marginTop: 6, color: color || C.text }}>{value}<span style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}> {unit}</span></div>
+    </div>
+  );
+  return (
+    <>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <Stat label="Training-day fuel" value={n.trainingDayCalories} unit="kcal" color={ZONES.endurance.color} />
+        <Stat label="Rest-day target" value={n.restDayCalories} unit="kcal" color={ZONES.recovery.color} />
+        <Stat label="Daily protein" value={n.proteinG} unit="g" color={C.brand} />
+      </div>
+      {n.notes && <Card style={{ marginTop: 14 }}><Eyebrow>Coach's note</Eyebrow><p style={{ lineHeight: 1.6, marginTop: 8, marginBottom: 0, fontSize: 14.5 }}>{n.notes}</p></Card>}
+      <Card style={{ marginTop: 14, background: C.brandSoft, border: `1px solid ${C.brand}` }}>
+        <Eyebrow>Coming next</Eyebrow>
+        <p style={{ lineHeight: 1.6, marginTop: 8, marginBottom: 0, fontSize: 14 }}>Per-day meal plans, macro splits (carbs/protein/fat) and ride-day fuelling (carbs/hour, pre/during/post) are the next feature landing here.</p>
+      </Card>
+    </>
   );
 }
 
@@ -726,8 +839,8 @@ function suggestFtpClient(sessions, profile) {
 }
 
 const CAT_COLORS = {
-  recovery: "#4FB0E3", endurance: "#34D399", tempo: "#A3E635", sweetspot: "#86C232",
-  threshold: "#FBBF24", vo2: "#FB7185", anaerobic: "#F472B6", sprint: "#C084FC", specialty: "#7C5CFF", test: "#4FB0E3",
+  recovery: "#0EA5E9", endurance: "#10B981", tempo: "#65A30D", sweetspot: "#4D7C0F",
+  threshold: "#F59E0B", vo2: "#EF4444", anaerobic: "#DB2777", sprint: "#9333EA", specialty: "#6366F1", test: "#0EA5E9",
 };
 
 function IntervalProfile({ steps }) {
@@ -805,7 +918,7 @@ function PMCChart({ series, projection }) {
   const projPts = projection ? [series[series.length - 1], ...projection.series].map((d, i) => `${x(off + i)},${y(d.ctl)}`).join(" ") : "";
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" preserveAspectRatio="none" style={{ display: "block", marginTop: 12, height: 150 }}>
-      <polygon points={area} fill="rgba(124,92,255,0.16)" />
+      <polygon points={area} fill="rgba(99,102,241,0.12)" />
       <polyline points={ctlPts} fill="none" stroke={C.brand} strokeWidth="2.5" vectorEffect="non-scaling-stroke" />
       {projPts && <polyline points={projPts} fill="none" stroke={C.brand} strokeWidth="2" strokeDasharray="5 4" opacity="0.7" vectorEffect="non-scaling-stroke" />}
       <polyline points={atlPts} fill="none" stroke="#FB7185" strokeWidth="2" vectorEffect="non-scaling-stroke" />
