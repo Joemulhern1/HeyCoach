@@ -37,6 +37,8 @@ Add your races on the dashboard with an A/B/C priority (A = peak/taper for it, B
 
 **Time off (holidays & illness):** add date ranges on the dashboard. Those days are forced clear and the plan eases around them (deload into a holiday, rebuild gently after illness). **Moving & missed:** tap any planned day to swap it with another day in the week, or mark it **missed** — a miss nudges that zone's progression level down, just like a logged ride.
 
+**How the plan is built:** the season structure (phases, recovery weeks, taper around races) is computed instantly in code — a deterministic periodization engine, so building is immediate with no timeout. The AI is used only to detail a week's intervals when you open a ride, plus coaching Q&A, screenshot reads and form analysis. View it as a **month calendar** or a week list.
+
 **Auto-updating:** change events or time off and the plan re-periodises itself moments later — no manual Rebuild needed; rapid edits batch into one regeneration.
 
 Note: building the plan is a single model call (skeleton for the whole horizon); a given week's detailed intervals fill on demand when you open a ride — this keeps generation fast and within serverless time limits.

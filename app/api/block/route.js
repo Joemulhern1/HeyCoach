@@ -1,7 +1,6 @@
 import { readStore, patchStore } from "../../../lib/store.js";
-import { generateBlock, applyAvailability } from "../../../lib/coach.js";
-
-export const maxDuration = 60;
+import { buildSkeleton } from "../../../lib/periodize.js";
+import { applyAvailability } from "../../../lib/coach.js";
 
 export async function POST() {
   try {
@@ -11,7 +10,8 @@ export async function POST() {
     if (!events.length && store.profile?.eventDate) {
       events = [{ id: "legacy", name: store.profile.eventName || "Goal event", date: store.profile.eventDate, priority: "A" }];
     }
-    const block = await generateBlock(store.profile, store.weights || [], store.progression, events, store.availability || []);
+    // Instant, deterministic periodization (no model call = no timeout).
+    const block = buildSkeleton(store.profile, store.weights || [], events, store.availability || []);
     applyAvailability(block, store.availability || []);
     const next = await patchStore({ block, events });
     return Response.json({ block: next.block, events: next.events });

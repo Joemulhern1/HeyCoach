@@ -529,6 +529,7 @@ function currentWeekIdx(block) {
 
 function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRegenerate, busy, downloadWorkout, prepareWeek, preparing, events, dayAction }) {
   const [moveOpen, setMoveOpen] = useState(false);
+  const [view, setView] = useState("calendar");
   const selWeek = selected ? block.weeks[selected.week] : null;
   return (
     <>
@@ -547,13 +548,23 @@ function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRege
         </div>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-        {block.weeks.map((wk, wi) => {
-          const next = block.weeks[wi + 1];
-          const wkEvents = (events || []).filter((e) => e.date >= wk.startDate && (!next || e.date < next.startDate));
-          return <WeekRow key={wi} wk={wk} wi={wi} isCurrent={wi === curWeek} selected={selected} setSelected={setSelected} wkEvents={wkEvents} />;
-        })}
+      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
+        {["calendar", "weeks"].map((v) => (
+          <button key={v} onClick={() => setView(v)} className="ghost" style={{ ...ghostBtn, padding: "5px 12px", fontSize: 12.5, ...(view === v ? { borderColor: C.brand, color: C.text } : {}) }}>{v === "calendar" ? "📅 Calendar" : "Weeks"}</button>
+        ))}
       </div>
+
+      {view === "calendar" ? (
+        <CalendarView weeks={block.weeks} events={events} curWeek={curWeek} selected={selected} setSelected={setSelected} />
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          {block.weeks.map((wk, wi) => {
+            const next = block.weeks[wi + 1];
+            const wkEvents = (events || []).filter((e) => e.date >= wk.startDate && (!next || e.date < next.startDate));
+            return <WeekRow key={wi} wk={wk} wi={wi} isCurrent={wi === curWeek} selected={selected} setSelected={setSelected} wkEvents={wkEvents} />;
+          })}
+        </div>
+      )}
 
       {sel && selWeek && (
         <Card style={{ borderLeft: `4px solid ${sel.status === "missed" ? "#FB7185" : sel.status === "off" ? C.faint : selZone.color}`, marginTop: 16 }}>
@@ -942,5 +953,50 @@ function AvailabilityCard({ availability, setAvailability, setError, scheduleReb
       <button onClick={add} className="ghost" style={{ ...ghostBtn, marginTop: 10, borderColor: C.brand, color: C.text }}>+ Add time off</button>
       {list.length > 0 && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 10 }}>After adding, hit <b>↻ Rebuild</b> to re-plan around it.</div>}
     </Card>
+  );
+}
+
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function CalendarView({ weeks, events, curWeek, selected, setSelected }) {
+  const today = new Date().toISOString().slice(0, 10);
+  let lastMonth = null;
+  return (
+    <div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 6 }}>
+        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => <div key={d} style={{ fontSize: 10, color: C.muted, textAlign: "center", fontWeight: 700, letterSpacing: 0.5 }}>{d}</div>)}
+      </div>
+      {weeks.map((wk, wi) => {
+        const ws = new Date(wk.startDate + "T00:00:00Z").getTime();
+        const month = new Date(ws).getUTCMonth();
+        const showMonth = month !== lastMonth; lastMonth = month;
+        return (
+          <div key={wi}>
+            {showMonth && <div style={{ fontSize: 10.5, color: C.brand, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", margin: "12px 0 5px" }}>{MONTHS[month]} {new Date(ws).getUTCFullYear()}</div>}
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 4 }}>
+              {wk.days.map((d, di) => {
+                const date = new Date(ws + di * 86400000).toISOString().slice(0, 10);
+                const z = ZONES[d.intensity] || ZONES.rest;
+                const off = d.status === "off", missed = d.status === "missed", isToday = date === today;
+                const hasEvent = (events || []).some((e) => e.date === date);
+                const active = selected && selected.week === wi && selected.day === di;
+                const label = off ? "Off" : d.type === "rest" ? "" : d.type === "gym" ? "Gym" : d.title;
+                return (
+                  <button key={di} onClick={() => setSelected(active ? null : { week: wi, day: di })}
+                    style={{ aspectRatio: "1 / 1", minHeight: 44, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 4, background: active ? C.surfaceHi : off ? "rgba(90,107,115,0.10)" : "transparent", border: `1px solid ${active ? z.color : isToday ? C.brand : C.border}`, borderRadius: 7, cursor: "pointer", color: C.text, overflow: "hidden", opacity: off ? 0.75 : 1 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2 }}>
+                      <span style={{ fontSize: 10, fontWeight: 800, color: isToday ? C.brand : C.muted }}>{date.slice(8)}</span>
+                      {hasEvent && <span style={{ fontSize: 9 }}>🏁</span>}
+                    </div>
+                    {d.type !== "rest" && !off && <span style={{ height: 4, borderRadius: 2, background: missed ? "#FB7185" : z.color }} />}
+                    <span style={{ fontSize: 8.5, color: missed ? "#FB7185" : C.muted, lineHeight: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: missed ? "line-through" : "none" }}>{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
