@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./globals.css";
 import { LIBRARY, CATEGORIES } from "../lib/library.js";
 import { computePMC } from "../lib/analytics.js";
+import { dailyTargets, classifyDay, fuelling, DAYTYPE_LABEL } from "../lib/nutrition.js";
 
 const ZONES = {
   recovery: { label: "Recovery", color: "#0EA5E9" },
@@ -68,6 +69,8 @@ export default function HeyCoach() {
   const [me, setMe] = useState(null);
   const [events, setEvents] = useState([]);
   const [availability, setAvailability] = useState([]);
+  const [coachChat, setCoachChat] = useState([]);
+  const [nutritionPlan, setNutritionPlan] = useState(null);
   const [strava, setStrava] = useState({ configured: false, connected: false, athlete: null });
   const [screen, setScreen] = useState("onboarding");
   const [busy, setBusy] = useState(false);
@@ -88,6 +91,8 @@ export default function HeyCoach() {
       if (s.progression) setProgression(s.progression);
       if (s.events) setEvents(s.events);
       if (s.availability) setAvailability(s.availability);
+      if (s.coachChat) setCoachChat(s.coachChat);
+      if (s.nutritionPlan) setNutritionPlan(s.nutritionPlan);
       if (st) setStrava((p) => ({ ...p, ...st }));
     }).catch(() => {}).finally(() => setLoading(false));
     const q = new URLSearchParams(window.location.search).get("strava");
@@ -138,7 +143,7 @@ export default function HeyCoach() {
         progression={progression} setProgression={setProgression} events={events} setEvents={setEvents} availability={availability} setAvailability={setAvailability} scheduleRebuild={scheduleRebuild}
         onEdit={() => setScreen("onboarding")} onRegenerate={() => build(false)}
         setSessions={setSessions} setWeights={setWeights} setError={setError} saveProfile={saveProfile}
-        nav={nav} setNav={setNav} me={me}
+        nav={nav} setNav={setNav} me={me} coachChat={coachChat} setCoachChat={setCoachChat} nutritionPlan={nutritionPlan} setNutritionPlan={setNutritionPlan}
       />
     </AppShell>
   );
@@ -258,9 +263,12 @@ function Onboarding({ profile, setProfile, onBuild, busy }) {
   );
 }
 
-function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, onEdit, onRegenerate, setSessions, setWeights, setError, saveProfile, progression, setProgression, events, setEvents, availability, setAvailability, scheduleRebuild, nav, setNav, me }) {
+function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, onEdit, onRegenerate, setSessions, setWeights, setError, saveProfile, progression, setProgression, events, setEvents, availability, setAvailability, scheduleRebuild, nav, setNav, me, coachChat, setCoachChat, nutritionPlan, setNutritionPlan }) {
   const [selected, setSelected] = useState(null); // { week, day }
-  const [q, setQ] = useState(""); const [answer, setAnswer] = useState(""); const [asking, setAsking] = useState(false);
+  const [q, setQ] = useState(""); const [asking, setAsking] = useState(false);
+  const chat = coachChat, setChat = setCoachChat;
+  const chatEndRef = useRef(null);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" }); }, [chat, asking]);
   const [uploading, setUploading] = useState(false); const [shotting, setShotting] = useState(false);
   const [showManual, setShowManual] = useState(false); const [syncing, setSyncing] = useState(false);
   const [preparing, setPreparing] = useState(null);
@@ -270,12 +278,36 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
   const sel = selected && block ? block.weeks[selected.week]?.days?.[selected.day] : null;
   const selZone = sel ? ZONES[sel.intensity] || ZONES.rest : null;
 
-  const ask = async () => {
-    if (!q.trim()) return; setAsking(true); setAnswer("");
+  const sendCoach = async () => {
+    const text = q.trim(); if (!text || asking) return;
+    const prev = chat;
+    setChat([...chat, { role: "user", content: text }]); setQ(""); setAsking(true);
     try {
-      const r = await fetch("/api/coach", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ question: q }) });
-      const d = await jget(r); setAnswer(r.ok ? d.answer : d.error || "Coach is unavailable.");
-    } catch { setAnswer("Coach is unavailable — try again."); } finally { setAsking(false); }
+      const r = await fetch("/api/coach", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: text }) });
+      const d = await jget(r);
+      if (r.ok) setChat(d.chat); else { setChat(prev); setQ(text); setError(d.error || "Coach is unavailable."); }
+    } catch { setChat(prev); setQ(text); setError("Coach is unavailable — try again."); } finally { setAsking(false); }
+  };
+  const clearCoach = async () => {
+    if (!chat.length) return;
+    setChat([]);
+    try { await fetch("/api/coach", { method: "DELETE" }); } catch {}
+  };
+  const SUGG_LABEL = { ease_week: "Ease this week", rest_today: "Make today a rest day" };
+  const applyCoach = async (type) => {
+    setError("");
+    try {
+      const r = await fetch("/api/coach/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type }) });
+      const d = await jget(r); if (r.ok) { setBlock(d.block); setChat(d.chat); } else setError(d.error || "Couldn't apply that.");
+    } catch { setError("Couldn't apply that — try again."); }
+  };
+  const [genMealsBusy, setGenMealsBusy] = useState(false);
+  const genMeals = async () => {
+    setGenMealsBusy(true); setError("");
+    try {
+      const r = await fetch("/api/nutrition", { method: "POST" });
+      const d = await jget(r); if (r.ok) setNutritionPlan(d.plan); else setError(d.error || "Couldn't generate meals.");
+    } catch { setError("Couldn't generate meals — try again."); } finally { setGenMealsBusy(false); }
   };
 
   const uploadFiles = async (e) => {
@@ -337,8 +369,8 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
     const d = await jget(r); if (r.ok) setWeights(d.weights);
   };
 
-  const downloadWorkout = (w, d) => {
-    const a = document.createElement("a"); a.href = `/api/workout?week=${w}&day=${d}`; a.download = "";
+  const downloadWorkout = (w, d, fmt = "fit") => {
+    const a = document.createElement("a"); a.href = `/api/workout?week=${w}&day=${d}&fmt=${fmt}`; a.download = "";
     document.body.appendChild(a); a.click(); a.remove();
   };
 
@@ -441,7 +473,10 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
                 </div>
                 <p style={{ color: C.muted, marginTop: 8, lineHeight: 1.6, marginBottom: 0 }}>{today.description}</p>
                 <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
-                  {today.type === "ride" && today.steps?.length > 0 && <button onClick={() => downloadWorkout(todayPos.week, todayPos.day)} className="ghost" style={ghostBtn}>⬇ Garmin (.FIT)</button>}
+                  {today.type === "ride" && today.steps?.length > 0 && <>
+                    <button onClick={() => downloadWorkout(todayPos.week, todayPos.day, "fit")} className="ghost" style={ghostBtn}>⬇ Garmin (.FIT)</button>
+                    <button onClick={() => downloadWorkout(todayPos.week, todayPos.day, "zwo")} className="ghost" style={ghostBtn}>⬇ Zwift (.ZWO)</button>
+                  </>}
                   <button onClick={() => { setSelected(todayPos); setNav("calendar"); }} className="ghost" style={ghostBtn}>Open in calendar →</button>
                 </div>
               </div>
@@ -477,8 +512,8 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
       </>)}
 
       {nav === "nutrition" && (<>
-        <Head title="Nutrition" sub="Fuelling for your training load." />
-        {block?.nutrition ? <NutritionView n={block.nutrition} /> : buildPrompt}
+        <Head title="Nutrition" sub="Macros that match your training, plus family-friendly Lidl meal ideas." />
+        <NutritionView profile={profile} weights={weights} today={today} plan={nutritionPlan} onGenerate={genMeals} busy={genMealsBusy} />
         <WeightCard profile={profile} weights={weights} kg={kg} setKg={setKg} logWeight={logWeight} removeWeight={removeWeight} />
       </>)}
 
@@ -488,38 +523,122 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
       </>)}
 
       {nav === "coach" && (<>
-        <Head title="Coach" sub="Ask anything about your training, nutrition or form." />
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
+          <Head title="Coach" sub="Ask anything — it remembers your conversation and your training." />
+          {chat.length > 0 && <button onClick={clearCoach} className="ghost" style={{ ...ghostBtn, padding: "5px 11px", fontSize: 12.5, flexShrink: 0 }}>New chat</button>}
+        </div>
         <Card>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <input style={{ ...input, flex: 1, minWidth: 200 }} placeholder="e.g. I'm 1.5kg down but Thursday felt flat — adjust?" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && ask()} />
-            <button onClick={ask} disabled={asking} className="primary" style={{ ...primaryBtn, width: "auto", padding: "0 20px", opacity: asking ? 0.6 : 1 }}>{asking ? "…" : "Ask"}</button>
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: "min(58vh, 520px)", overflowY: "auto", paddingRight: 4 }}>
+            {chat.length === 0 && !asking && (
+              <div style={{ color: C.muted, fontSize: 14, padding: "6px 2px", lineHeight: 1.6 }}>
+                Start a conversation — and follow up as much as you like. The coach remembers what you've said and knows your plan, FTP, weight and recent rides.<br /><br />
+                <span style={{ color: C.faint }}>Try: "I'm 1.5kg down but Thursday's VO2 felt flat — should I ease off this week?"</span>
+              </div>
+            )}
+            {chat.map((m, i) => (
+              <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", gap: 6 }}>
+                <div style={{ maxWidth: "84%", padding: "10px 13px", borderRadius: 14, fontSize: 14.5, lineHeight: 1.55, whiteSpace: "pre-wrap",
+                  background: m.role === "user" ? C.brand : C.surfaceHi, color: m.role === "user" ? "#fff" : C.text,
+                  borderBottomRightRadius: m.role === "user" ? 4 : 14, borderBottomLeftRadius: m.role === "user" ? 14 : 4 }}>{m.content}</div>
+                {m.role === "assistant" && m.suggestion && i === chat.length - 1 && (
+                  <button onClick={() => applyCoach(m.suggestion)} className="primary" style={{ ...primaryBtn, width: "auto", padding: "8px 16px", fontSize: 13 }}>✓ {SUGG_LABEL[m.suggestion] || "Apply"}</button>
+                )}
+              </div>
+            ))}
+            {asking && <div style={{ display: "flex", justifyContent: "flex-start" }}><div style={{ padding: "10px 13px", borderRadius: 14, background: C.surfaceHi }}><span className="pulse" style={{ color: C.muted, fontSize: 14 }}>Coach is thinking…</span></div></div>}
+            <div ref={chatEndRef} />
           </div>
-          {(asking || answer) && <p style={{ lineHeight: 1.6, marginTop: 14, fontSize: 15, marginBottom: 0 }}>{asking ? <span className="pulse" style={{ color: C.muted }}>Coach is thinking…</span> : answer}</p>}
+          <div style={{ display: "flex", gap: 8, marginTop: 14 }}>
+            <input style={{ ...input, flex: 1 }} placeholder="Message your coach…" value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Enter" && sendCoach()} />
+            <button onClick={sendCoach} disabled={asking} className="primary" style={{ ...primaryBtn, width: "auto", padding: "0 22px", opacity: asking ? 0.6 : 1 }}>{asking ? "…" : "Send"}</button>
+          </div>
         </Card>
       </>)}
     </div>
   );
 }
 
-function NutritionView({ n }) {
+function NutritionView({ profile, weights, today, plan, onGenerate, busy }) {
+  const targets = dailyTargets(profile, weights);
+  const todayType = classifyDay(today);
+  const [view, setView] = useState(todayType === "rest" ? "rest" : "training");
+  const t = view === "training" ? targets.hard : targets.rest;
+  const fuel = fuelling(view === "training" ? "hard" : "rest");
+  const meals = plan?.meals?.[view === "training" ? "trainingDay" : "restDay"];
+
+  const macroBar = (() => {
+    const c = t.carbsG * 4, p = t.proteinG * 4, f = t.fatG * 9, tot = c + p + f || 1;
+    return [["Carbs", c, ZONES.endurance.color], ["Protein", p, C.brand], ["Fat", f, ZONES.threshold.color]]
+      .map(([l, v, col]) => ({ l, pct: Math.round((v / tot) * 100), col }));
+  })();
+
   const Stat = ({ label, value, unit, color }) => (
-    <div style={{ flex: 1, minWidth: 150, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "16px 18px" }}>
+    <div style={{ flex: 1, minWidth: 120, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
       <div style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>{label}</div>
-      <div style={{ fontSize: 26, fontWeight: 800, fontFamily: C.mono, marginTop: 6, color: color || C.text }}>{value}<span style={{ fontSize: 13, color: C.muted, fontWeight: 600 }}> {unit}</span></div>
+      <div style={{ fontSize: 24, fontWeight: 800, fontFamily: C.mono, marginTop: 5, color: color || C.text }}>{value}<span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}> {unit}</span></div>
     </div>
   );
+  const Meal = ({ slot, m }) => m ? (
+    <Card style={{ marginTop: 0 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+        <div><span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", color: C.brand, fontWeight: 700 }}>{slot}</span><div style={{ fontSize: 16, fontWeight: 800, marginTop: 2 }}>{m.name}</div></div>
+        <div style={{ fontFamily: C.mono, fontSize: 11.5, color: C.muted }}>{m.kcal} kcal · {m.carbsG}C {m.proteinG}P {m.fatG}F</div>
+      </div>
+      {m.ingredients?.length > 0 && <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>{m.ingredients.map((ing, i) => <span key={i} style={{ fontSize: 12, background: C.surfaceHi, borderRadius: 20, padding: "3px 10px", color: C.text }}>{ing}</span>)}</div>}
+      {m.method && <p style={{ fontSize: 13.5, lineHeight: 1.6, color: C.muted, margin: "10px 0 0" }}>{m.method}</p>}
+    </Card>
+  ) : null;
+
   return (
     <>
-      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
-        <Stat label="Training-day fuel" value={n.trainingDayCalories} unit="kcal" color={ZONES.endurance.color} />
-        <Stat label="Rest-day target" value={n.restDayCalories} unit="kcal" color={ZONES.recovery.color} />
-        <Stat label="Daily protein" value={n.proteinG} unit="g" color={C.brand} />
+      <div style={{ display: "flex", gap: 6, marginBottom: 4 }}>
+        {[["training", "Training day"], ["rest", "Rest day"]].map(([v, l]) => (
+          <button key={v} onClick={() => setView(v)} className="ghost" style={{ ...ghostBtn, padding: "6px 14px", fontSize: 13, ...(view === v ? { borderColor: C.brand, color: C.brand, background: C.brandSoft } : {}) }}>{l}</button>
+        ))}
+        {todayType && <span style={{ alignSelf: "center", marginLeft: 6, fontSize: 12, color: C.muted }}>Today is a <b style={{ color: C.text }}>{DAYTYPE_LABEL[todayType].toLowerCase()}</b></span>}
       </div>
-      {n.notes && <Card style={{ marginTop: 14 }}><Eyebrow>Coach's note</Eyebrow><p style={{ lineHeight: 1.6, marginTop: 8, marginBottom: 0, fontSize: 14.5 }}>{n.notes}</p></Card>}
-      <Card style={{ marginTop: 14, background: C.brandSoft, border: `1px solid ${C.brand}` }}>
-        <Eyebrow>Coming next</Eyebrow>
-        <p style={{ lineHeight: 1.6, marginTop: 8, marginBottom: 0, fontSize: 14 }}>Per-day meal plans, macro splits (carbs/protein/fat) and ride-day fuelling (carbs/hour, pre/during/post) are the next feature landing here.</p>
+
+      <Card>
+        <Eyebrow>{view === "training" ? "Training-day targets" : "Rest-day targets"}</Eyebrow>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 10 }}>
+          <Stat label="Calories" value={t.kcal} unit="kcal" />
+          <Stat label="Carbs" value={t.carbsG} unit="g" color={ZONES.endurance.color} />
+          <Stat label="Protein" value={t.proteinG} unit="g" color={C.brand} />
+          <Stat label="Fat" value={t.fatG} unit="g" color={ZONES.threshold.color} />
+        </div>
+        <div style={{ display: "flex", height: 10, borderRadius: 6, overflow: "hidden", marginTop: 14 }}>
+          {macroBar.map((b, i) => <div key={i} style={{ width: `${b.pct}%`, background: b.col }} title={`${b.l} ${b.pct}%`} />)}
+        </div>
+        <div style={{ display: "flex", gap: 14, marginTop: 8, fontSize: 11.5, color: C.muted }}>
+          {macroBar.map((b, i) => <span key={i}><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: 2, background: b.col, marginRight: 5 }} />{b.l} {b.pct}%</span>)}
+        </div>
       </Card>
+
+      <Card>
+        <Eyebrow>Ride fuelling</Eyebrow>
+        <div style={{ fontFamily: C.mono, fontSize: 14, color: C.brand, fontWeight: 700, marginTop: 8 }}>{fuel.carbsPerHour}</div>
+        <div style={{ marginTop: 10, display: "flex", flexDirection: "column", gap: 8 }}>
+          {[["Before", fuel.pre], ["During", fuel.during], ["After", fuel.post]].map(([k, v]) => (
+            <div key={k} style={{ display: "flex", gap: 10 }}><span style={{ fontSize: 12, fontWeight: 700, color: C.muted, minWidth: 52 }}>{k}</span><span style={{ fontSize: 13.5, lineHeight: 1.5 }}>{v}</span></div>
+          ))}
+        </div>
+      </Card>
+
+      <Card style={{ background: meals ? C.surface : C.brandSoft, border: `1px solid ${meals ? C.border : C.brand}` }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <div><Eyebrow>Meal ideas</Eyebrow><div style={{ fontSize: 13, color: C.muted, marginTop: 4 }}>Simple, family-friendly, Lidl-Ireland ingredients{plan?.generatedAt ? ` · updated ${plan.generatedAt.slice(0, 10)}` : ""}.</div></div>
+          <button onClick={onGenerate} disabled={busy} className="primary" style={{ ...primaryBtn, width: "auto", padding: "10px 18px", opacity: busy ? 0.6 : 1 }}>{busy ? "Cooking up ideas…" : meals ? "↻ Refresh" : "Generate meal ideas"}</button>
+        </div>
+      </Card>
+
+      {meals && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+          <Meal slot="Breakfast" m={meals.breakfast} />
+          <Meal slot="Lunch" m={meals.lunch} />
+          <Meal slot="Dinner" m={meals.dinner} />
+          <Meal slot="Snack" m={meals.snack} />
+        </div>
+      )}
     </>
   );
 }
@@ -688,7 +807,10 @@ function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRege
           {sel.status === "missed" && <div style={{ color: "#FB7185", fontSize: 12, fontWeight: 700, marginTop: 6 }}>✕ Marked missed</div>}
           <p style={{ lineHeight: 1.6, margin: "10px 0 0", fontSize: 15 }}>{sel.description}</p>
           {sel.type === "ride" && sel.status !== "off" && (sel.steps?.length > 0
-            ? <button onClick={() => downloadWorkout(selected.week, selected.day)} className="ghost" style={{ ...ghostBtn, marginTop: 14, color: C.text, borderColor: C.brand }}>⬇ Garmin workout (.FIT) · {sel.steps.length} steps</button>
+            ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+                <button onClick={() => downloadWorkout(selected.week, selected.day, "fit")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>⬇ Garmin (.FIT) · {sel.steps.length} steps</button>
+                <button onClick={() => downloadWorkout(selected.week, selected.day, "zwo")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>⬇ Zwift (.ZWO)</button>
+              </div>
             : <button onClick={() => prepareWeek(selected.week)} className="ghost" style={{ ...ghostBtn, marginTop: 14 }} disabled={preparing === selected.week}>{preparing === selected.week ? "Preparing week…" : "Prepare this week's intervals →"}</button>
           )}
           {sel.status !== "off" && (
@@ -863,14 +985,14 @@ function LibraryCard() {
   const [open, setOpen] = useState(null);
   const cats = CATEGORIES.filter((c) => LIBRARY.some((w) => w.cat === c.key));
   const list = filter === "all" ? LIBRARY : LIBRARY.filter((w) => w.cat === filter);
-  const dl = (id) => {
-    const a = document.createElement("a"); a.href = `/api/library/workout?id=${id}`; a.download = "";
+  const dl = (id, fmt = "fit") => {
+    const a = document.createElement("a"); a.href = `/api/library/workout?id=${id}&fmt=${fmt}`; a.download = "";
     document.body.appendChild(a); a.click(); a.remove();
   };
   return (
     <Card>
       <Eyebrow>Workout library</Eyebrow>
-      <div style={{ color: C.muted, fontSize: 12.5, marginTop: 4, marginBottom: 12 }}>Canonical power sessions, scaled to your FTP. Tap one to preview or send to your Garmin.</div>
+      <div style={{ color: C.muted, fontSize: 12.5, marginTop: 4, marginBottom: 12 }}>Canonical power sessions, scaled to your FTP. Tap one to preview or send to Garmin or Zwift or Zwift.</div>
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
         {[{ key: "all", label: "All" }, ...cats].map((c) => (
           <button key={c.key} onClick={() => setFilter(c.key)} className="ghost"
@@ -893,7 +1015,10 @@ function LibraryCard() {
                 <div>
                   <p style={{ fontSize: 13.5, lineHeight: 1.5, margin: "10px 0 0" }}>{w.description}</p>
                   <IntervalProfile steps={w.steps} />
-                  <button onClick={() => dl(w.id)} className="ghost" style={{ ...ghostBtn, marginTop: 10, color: C.text, borderColor: C.brand }}>⬇ Garmin workout (.FIT) · {w.durationMin}min</button>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                    <button onClick={() => dl(w.id, "fit")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>⬇ Garmin (.FIT)</button>
+                    <button onClick={() => dl(w.id, "zwo")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>⬇ Zwift (.ZWO)</button>
+                  </div>
                 </div>
               )}
             </div>

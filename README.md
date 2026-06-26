@@ -28,7 +28,9 @@ can ask anything. Multi-user, self-hosted: each member gets their own login and 
   diet the rest": near-maintenance on hard/long days to protect FTP, the deficit on easy/rest
   days, protein high to hold lean mass, loss rate capped at ~0.5kg/week.
 - **Weight log** — quick weigh-ins, current + 7-day average, to-target readout. Feeds the coach.
-- **Ask your coach** — training or nutrition, in plain language.
+- **Conversational coach (with memory + actions)**
+- **Rich nutrition** — daily macro targets periodised to each day's training load, ride fuelling (carbs/hour, pre/during/post), and AI meal ideas with quick recipes using simple family-friendly Lidl-Ireland ingredients.
+- **Coach actions** — when the coach recommends easing the week or resting today, a one-tap button applies it to the real plan. — training or nutrition, in plain language.
 - **Strava auto-sync (optional)** — see "Strava" below; off by default.
 
 ## Events & the forever coach
@@ -118,6 +120,9 @@ lib/
   progression.js  per-zone levels (deterministic), zone inference, FTP-bump heuristic
   library.js      56 curated power workouts (science-based), scaled to FTP
   analytics.js    Performance Management Chart (CTL/ATL/TSB), forecast
+  zwo.js          build Zwift .zwo structured workouts (FTP-relative)
+  meals.js        AI meal/recipe ideas (Lidl Ireland, family-friendly)
+  nutrition.js    deterministic daily macro targets + ride fuelling
   fit.js        structured workout -> Garmin .fit (official @garmin/fitsdk)
   strava.js     OAuth + activity fetch (optional)
 ```
