@@ -2,8 +2,9 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import "./globals.css";
 import { LIBRARY, CATEGORIES } from "../lib/library.js";
-import { computePMC } from "../lib/analytics.js";
-import { dailyTargets, classifyDay, fuelling, DAYTYPE_LABEL } from "../lib/nutrition.js";
+import { computePMC, assessLoad } from "../lib/analytics.js";
+import { dailyTargets, classifyDay, fuelling, DAYTYPE_LABEL, dailyAdvice } from "../lib/nutrition.js";
+import { estimateFtp } from "../lib/ftp.js";
 
 const ZONES = {
   recovery: { label: "Recovery", color: "#0EA5E9" },
@@ -163,6 +164,17 @@ function CenterWrap({ children }) {
   );
 }
 
+function lastSessionRemark(s, tss) {
+  const t = tss ? ` — ${tss} TSS in the bank` : "";
+  switch (s.feedback) {
+    case "nailed": return `You nailed ${s.name}${t}. That's exactly the kind of session that lifts your FTP.`;
+    case "ok": return `Solid work on ${s.name}${tss ? ` (${tss} TSS)` : ""} — right on track.`;
+    case "hard": return `${s.name} felt hard${tss ? ` (${tss} TSS)` : ""} — useful signal. If the next one feels flat too, we'll ease off.`;
+    case "missed": return `You marked ${s.name} as missed — no drama, we carry on.`;
+    default: return `Logged: ${s.name}${tss ? ` — ${tss} TSS` : ""}. Rate how it felt so I can fine-tune your plan.`;
+  }
+}
+
 const NAV = [
   { label: "Train" },
   { id: "today", label: "Today", ic: "🏠" },
@@ -293,12 +305,23 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
     setChat([]);
     try { await fetch("/api/coach", { method: "DELETE" }); } catch {}
   };
+  const [health, setHealth] = useState(null);
+  const testConn = async () => {
+    setHealth({ testing: true });
+    try { const r = await fetch("/api/coach/health"); setHealth(await r.json()); }
+    catch { setHealth({ ok: false, error: "Couldn't reach the server." }); }
+  };
   const SUGG_LABEL = { ease_week: "Ease this week", rest_today: "Make today a rest day" };
-  const applyCoach = async (type) => {
+  const [propDismissed, setPropDismissed] = useState(-1);
+  const [loadDismissed, setLoadDismissed] = useState(false);
+  const [ftpDismissed, setFtpDismissed] = useState(false);
+  const applyFtp = (v) => { saveProfile({ ...profile, currentFTP: v }); setFtpDismissed(true); };
+  const applyCoach = async (arg) => {
     setError("");
+    const body = typeof arg === "string" ? { type: arg } : arg;
     try {
-      const r = await fetch("/api/coach/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ type }) });
-      const d = await jget(r); if (r.ok) { setBlock(d.block); setChat(d.chat); } else setError(d.error || "Couldn't apply that.");
+      const r = await fetch("/api/coach/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      const d = await jget(r); if (r.ok) { setBlock(d.block); if (d.chat) setChat(d.chat); setLoadDismissed(true); } else setError(d.error || "Couldn't apply that.");
     } catch { setError("Couldn't apply that — try again."); }
   };
   const [genMealsBusy, setGenMealsBusy] = useState(false);
@@ -394,6 +417,16 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
   let today = null, todayPos = null;
   if (block) block.weeks.forEach((w, wi) => w.days.forEach((d, di) => { if ((d.date || isoFromWeek(w.startDate, di)) === todayIso) { today = d; todayPos = { week: wi, day: di }; } }));
   const tz = today ? (ZONES[today.intensity] || ZONES.rest) : null;
+  const todayType = classifyDay(today);
+  const nutTargets = dailyTargets(profile, weights);
+  const tnut = nutTargets[todayType] || nutTargets.rest;
+  const todayPmc = computePMC(sessions, profile);
+  const todayTsb = todayPmc && !todayPmc.empty ? todayPmc.current.tsb : null;
+  const advice = dailyAdvice(todayType, todayTsb, today ? today.title : null);
+  const loadRec = block ? assessLoad(todayPmc) : null;
+  const ftpRec = estimateFtp(sessions, profile);
+  const lastSession = [...(sessions || [])].sort((a, b) => new Date(b.date || b.addedAt) - new Date(a.date || a.addedAt))[0];
+  const tssOf = (s) => (s?.avgPower && profile?.currentFTP && s?.durationSec) ? Math.round((s.durationSec * s.avgPower * (s.avgPower / profile.currentFTP)) / (profile.currentFTP * 3600) * 100) : null;
 
   const Head = ({ title, sub }) => (
     <div style={{ marginBottom: 2 }}>
@@ -483,6 +516,88 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
             ) : <p style={{ color: C.muted, marginTop: 8, marginBottom: 0 }}>Nothing scheduled today — enjoy the rest.</p>}
           </Card>
         ) : buildPrompt}
+
+        <Card style={{ borderLeft: `4px solid ${C.brand}`, background: C.brandSoft }}>
+          <Eyebrow>Coach's advice</Eyebrow>
+          <p style={{ lineHeight: 1.6, margin: "8px 0 0", fontSize: 15 }}>{advice}</p>
+        </Card>
+
+        {loadRec && !loadDismissed && (
+          <Card style={{ borderLeft: "4px solid #EF4444" }}>
+            <Eyebrow>⚡ Adaptive check</Eyebrow>
+            <p style={{ lineHeight: 1.6, margin: "8px 0 0", fontSize: 15 }}>{loadRec.headline}</p>
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <button onClick={() => applyCoach(loadRec.action)} className="primary" style={{ ...primaryBtn, width: "auto", padding: "8px 16px", fontSize: 13 }}>✓ Ease this week</button>
+              <button onClick={() => setLoadDismissed(true)} className="ghost" style={{ ...ghostBtn, fontSize: 13 }}>Not now</button>
+            </div>
+          </Card>
+        )}
+
+        {ftpRec?.suggestion && !ftpDismissed && (
+          <Card style={{ borderLeft: "4px solid #10B981" }}>
+            <Eyebrow>⚡ FTP auto-detect</Eyebrow>
+            <p style={{ lineHeight: 1.6, margin: "8px 0 0", fontSize: 15 }}>
+              Your rides suggest a new FTP: <b>{ftpRec.from}W → <span style={{ color: "#10B981" }}>{ftpRec.suggestion}W</span></b> ({ftpRec.deltaW > 0 ? "+" : ""}{ftpRec.deltaW}W), from {ftpRec.basis}. Updating rescales every upcoming workout and export.
+            </p>
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <button onClick={() => applyFtp(ftpRec.suggestion)} className="primary" style={{ ...primaryBtn, width: "auto", padding: "8px 16px", fontSize: 13 }}>✓ Update FTP to {ftpRec.suggestion}W</button>
+              <button onClick={() => setFtpDismissed(true)} className="ghost" style={{ ...ghostBtn, fontSize: 13 }}>Not now</button>
+            </div>
+          </Card>
+        )}
+        {ftpRec?.needTest && !ftpDismissed && (
+          <Card style={{ borderLeft: `4px solid ${C.brand}` }}>
+            <Eyebrow>⚡ FTP check</Eyebrow>
+            <p style={{ lineHeight: 1.6, margin: "8px 0 0", fontSize: 15 }}>I haven't seen a hard enough effort to read your FTP lately. A quick ramp or 20-min test keeps every workout target accurate.</p>
+            <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+              <button onClick={() => setNav("workouts")} className="primary" style={{ ...primaryBtn, width: "auto", padding: "8px 16px", fontSize: 13 }}>See test workouts →</button>
+              <button onClick={() => setFtpDismissed(true)} className="ghost" style={{ ...ghostBtn, fontSize: 13 }}>Not now</button>
+            </div>
+          </Card>
+        )}
+
+        {lastSession && (
+          <Card>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
+              <div style={{ minWidth: 0 }}>
+                <Eyebrow>Last session</Eyebrow>
+                <div style={{ fontSize: 16, fontWeight: 800, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lastSession.name}</div>
+                <div style={{ fontSize: 11.5, color: C.muted, fontFamily: C.mono }}>{(lastSession.date || lastSession.addedAt || "").slice(0, 10)} · {lastSession.source}</div>
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                {tssOf(lastSession) != null && <Metric v={tssOf(lastSession)} l="TSS" />}
+                <Metric v={fmtMins(lastSession.durationSec)} l="time" />
+                {lastSession.avgPower != null && <Metric v={`${lastSession.avgPower}W`} l="avg" />}
+              </div>
+            </div>
+            <p style={{ lineHeight: 1.6, margin: "12px 0 0", fontSize: 14.5 }}>{lastSessionRemark(lastSession, tssOf(lastSession))}</p>
+            {!lastSession.feedback ? (
+              <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                <span style={{ fontSize: 12.5, color: C.muted }}>How'd it go?</span>
+                {Object.keys(FB).map((k) => (
+                  <button key={k} onClick={() => sendFeedback(lastSession.id, k)} className="ghost" style={{ ...ghostBtn, padding: "5px 11px", fontSize: 12.5, color: FB[k].color, borderColor: C.border }}>{FB[k].label}</button>
+                ))}
+              </div>
+            ) : (
+              <div style={{ marginTop: 10, fontSize: 12.5, color: C.muted }}>How it went: <span style={{ color: (FB[lastSession.feedback] || {}).color, fontWeight: 700 }}>{(FB[lastSession.feedback] || {}).label}</span></div>
+            )}
+          </Card>
+        )}
+
+        <Card>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+            <Eyebrow>Today's fuel · {DAYTYPE_LABEL[todayType].toLowerCase()}</Eyebrow>
+            <button onClick={() => setNav("nutrition")} className="ghost" style={{ ...ghostBtn, padding: "5px 11px", fontSize: 12.5 }}>Meal plan →</button>
+          </div>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+            <Stat label="Calories" value={tnut.kcal} unit="kcal" />
+            <Stat label="Carbs" value={tnut.carbsG} unit="g" color={ZONES.endurance.color} />
+            <Stat label="Protein" value={tnut.proteinG} unit="g" color={C.brand} />
+            <Stat label="Fat" value={tnut.fatG} unit="g" color={ZONES.threshold.color} />
+          </div>
+          <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.5, margin: "12px 0 0" }}>On-bike fuelling: <b style={{ color: C.text }}>{fuelling(todayType).carbsPerHour}</b>. {fuelling(todayType).post}</p>
+        </Card>
+
         <AnalyticsCard sessions={sessions} profile={profile} />
       </>)}
 
@@ -525,8 +640,16 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
       {nav === "coach" && (<>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", gap: 12 }}>
           <Head title="Coach" sub="Ask anything — it remembers your conversation and your training." />
-          {chat.length > 0 && <button onClick={clearCoach} className="ghost" style={{ ...ghostBtn, padding: "5px 11px", fontSize: 12.5, flexShrink: 0 }}>New chat</button>}
+          <div style={{ display: "flex", gap: 8, flexShrink: 0 }}>
+            <button onClick={testConn} className="ghost" style={{ ...ghostBtn, padding: "5px 11px", fontSize: 12.5 }}>Test connection</button>
+            {chat.length > 0 && <button onClick={clearCoach} className="ghost" style={{ ...ghostBtn, padding: "5px 11px", fontSize: 12.5 }}>New chat</button>}
+          </div>
         </div>
+        {health && (
+          <div style={{ borderRadius: 10, padding: "10px 14px", fontSize: 13.5, lineHeight: 1.5, background: health.testing ? C.surfaceHi : health.ok ? "#ECFDF5" : "#FEF2F2", border: `1px solid ${health.testing ? C.border : health.ok ? "#6EE7B7" : "#FCA5A5"}`, color: health.testing ? C.muted : health.ok ? "#065F46" : "#B91C1C" }}>
+            {health.testing ? "Testing the coach connection…" : health.ok ? `✓ Coach connected — ${health.model} responded in ${health.ms}ms.` : `✕ Coach can't reach the model (${health.model}): ${health.error}`}
+          </div>
+        )}
         <Card>
           <div style={{ display: "flex", flexDirection: "column", gap: 10, maxHeight: "min(58vh, 520px)", overflowY: "auto", paddingRight: 4 }}>
             {chat.length === 0 && !asking && (
@@ -540,7 +663,17 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
                 <div style={{ maxWidth: "84%", padding: "10px 13px", borderRadius: 14, fontSize: 14.5, lineHeight: 1.55, whiteSpace: "pre-wrap",
                   background: m.role === "user" ? C.brand : C.surfaceHi, color: m.role === "user" ? "#fff" : C.text,
                   borderBottomRightRadius: m.role === "user" ? 4 : 14, borderBottomLeftRadius: m.role === "user" ? 14 : 4 }}>{m.content}</div>
-                {m.role === "assistant" && m.suggestion && i === chat.length - 1 && (
+                {m.role === "assistant" && m.proposal && i === chat.length - 1 && propDismissed !== i && (
+                  <div style={{ background: C.surface, border: `1px solid ${C.brand}`, borderRadius: 12, padding: "12px 14px", maxWidth: "94%" }}>
+                    <div style={{ fontSize: 11, letterSpacing: 1, textTransform: "uppercase", color: C.brand, fontWeight: 700 }}>Proposed change</div>
+                    <div style={{ fontSize: 14, marginTop: 6, lineHeight: 1.5 }}>{m.proposal.summary || "Adjust your plan"}</div>
+                    <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
+                      <button onClick={() => applyCoach(m.proposal)} className="primary" style={{ ...primaryBtn, width: "auto", padding: "8px 16px", fontSize: 13 }}>✓ Confirm</button>
+                      <button onClick={() => setPropDismissed(i)} className="ghost" style={{ ...ghostBtn, fontSize: 13 }}>Cancel</button>
+                    </div>
+                  </div>
+                )}
+                {m.role === "assistant" && m.suggestion && !m.proposal && i === chat.length - 1 && (
                   <button onClick={() => applyCoach(m.suggestion)} className="primary" style={{ ...primaryBtn, width: "auto", padding: "8px 16px", fontSize: 13 }}>✓ {SUGG_LABEL[m.suggestion] || "Apply"}</button>
                 )}
               </div>
@@ -759,10 +892,109 @@ function currentWeekIdx(block) {
   return 0;
 }
 
+const isoAdd = (startISO, d) => new Date(new Date(startISO + "T00:00:00Z").getTime() + d * 86400000).toISOString().slice(0, 10);
+const fmtDayMon = (iso) => new Date(iso + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+
+function WeekList({ block, focusWeek, setFocusWeek, curWeek, selected, setSelected, eventDates }) {
+  const wi = Math.max(0, Math.min(block.weeks.length - 1, focusWeek));
+  const wk = block.weeks[wi];
+  const today = new Date().toISOString().slice(0, 10);
+  const start = wk.startDate;
+  const navBtn = (dir, disabled, onClick) => <button onClick={onClick} disabled={disabled} className="ghost" style={{ ...ghostBtn, padding: "8px 14px", fontSize: 16, opacity: disabled ? 0.4 : 1 }}>{dir}</button>;
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
+        {navBtn("‹", wi === 0, () => setFocusWeek(wi - 1))}
+        <div style={{ textAlign: "center", flex: 1, minWidth: 0 }}>
+          <div style={{ fontWeight: 800, fontSize: 15.5 }}>Week {wk.weekNumber} · {wk.phase}</div>
+          <div style={{ fontSize: 12, color: C.muted }}>{fmtDayMon(start)} – {fmtDayMon(isoAdd(start, 6))}{wi === curWeek ? " · this week" : ""}</div>
+        </div>
+        {navBtn("›", wi === block.weeks.length - 1, () => setFocusWeek(wi + 1))}
+      </div>
+      {wi !== curWeek && <button onClick={() => setFocusWeek(curWeek)} className="ghost" style={{ ...ghostBtn, fontSize: 12.5, marginBottom: 10, width: "100%" }}>Jump to this week</button>}
+      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+        {wk.days.map((d, di) => {
+          const z = ZONES[d.intensity] || ZONES.rest;
+          const date = d.date || isoAdd(start, di);
+          const isToday = date === today, active = selected && selected.week === wi && selected.day === di;
+          const off = d.status === "off", missed = d.status === "missed", rest = d.type === "rest";
+          const ev = eventDates.has(date);
+          return (
+            <button key={di} onClick={() => setSelected(active ? null : { week: wi, day: di })}
+              style={{ display: "flex", alignItems: "center", gap: 12, textAlign: "left", width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${active ? z.color : isToday ? C.brand : C.border}`, background: active ? C.brandSoft : C.surface, cursor: "pointer", color: C.text }}>
+              <div style={{ width: 4, alignSelf: "stretch", borderRadius: 3, minHeight: 34, background: rest ? C.border : missed ? "#FB7185" : off ? C.faint : z.color }} />
+              <div style={{ minWidth: 46 }}>
+                <div style={{ fontSize: 13, fontWeight: 800, color: isToday ? C.brand : C.text }}>{d.day}</div>
+                <div style={{ fontSize: 11, color: C.muted }}>{fmtDayMon(date)}</div>
+              </div>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 15, fontWeight: 700, textDecoration: missed ? "line-through" : "none", color: missed ? C.muted : C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev ? "🏁 " : ""}{off ? "Off" : rest ? "Rest" : d.title}</div>
+                <div style={{ fontSize: 12, color: C.muted }}>{rest ? "Recover" : off ? "Time off" : `${z.label} · ${d.duration}`}</div>
+              </div>
+              <span style={{ color: C.faint, fontSize: 20, flexShrink: 0 }}>›</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function MonthGrid({ dateMap, monthCursor, setMonthCursor, selected, setSelected, eventDates }) {
+  const today = new Date().toISOString().slice(0, 10);
+  const { y, m } = monthCursor;
+  const first = new Date(Date.UTC(y, m, 1));
+  const monthName = first.toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
+  const lead = (first.getUTCDay() + 6) % 7;
+  const gridStart = first.getTime() - lead * 86400000;
+  const cells = Array.from({ length: 42 }, (_, i) => new Date(gridStart + i * 86400000));
+  const nowM = new Date(); const isCurMonth = nowM.getFullYear() === y && nowM.getMonth() === m;
+  const navBtn = (dir, onClick) => <button onClick={onClick} className="ghost" style={{ ...ghostBtn, padding: "8px 14px", fontSize: 16 }}>{dir}</button>;
+  return (
+    <div>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
+        {navBtn("‹", () => setMonthCursor(m === 0 ? { y: y - 1, m: 11 } : { y, m: m - 1 }))}
+        <div style={{ fontWeight: 800, fontSize: 15.5 }}>{monthName}</div>
+        {navBtn("›", () => setMonthCursor(m === 11 ? { y: y + 1, m: 0 } : { y, m: m + 1 }))}
+      </div>
+      {!isCurMonth && <button onClick={() => setMonthCursor({ y: nowM.getFullYear(), m: nowM.getMonth() })} className="ghost" style={{ ...ghostBtn, fontSize: 12.5, marginBottom: 10, width: "100%" }}>Back to today</button>}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4, marginBottom: 6 }}>
+        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d, i) => <div key={i} style={{ fontSize: 10, color: C.muted, textAlign: "center", fontWeight: 700 }}>{d}</div>)}
+      </div>
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4 }}>
+        {cells.map((c, i) => {
+          const iso = c.toISOString().slice(0, 10);
+          const inMonth = c.getUTCMonth() === m;
+          const hit = dateMap[iso], d = hit?.d;
+          const z = d ? (ZONES[d.intensity] || ZONES.rest) : null;
+          const off = d?.status === "off", missed = d?.status === "missed", rest = d?.type === "rest";
+          const isToday = iso === today, active = hit && selected && selected.week === hit.wi && selected.day === hit.di;
+          const ev = eventDates.has(iso);
+          return (
+            <button key={i} onClick={() => hit && setSelected(active ? null : { week: hit.wi, day: hit.di })} disabled={!hit}
+              style={{ aspectRatio: "1 / 1", minHeight: 42, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 4, border: `1px solid ${active ? z.color : isToday ? C.brand : C.border}`, borderRadius: 8, cursor: hit ? "pointer" : "default", background: active ? C.brandSoft : C.surface, opacity: inMonth ? 1 : 0.38, color: C.text }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <span style={{ fontSize: 10.5, fontWeight: 800, color: isToday ? C.brand : C.muted }}>{c.getUTCDate()}</span>
+                {ev && <span style={{ fontSize: 9 }}>🏁</span>}
+              </div>
+              {d && !rest && !off && <span style={{ height: 4, borderRadius: 2, background: missed ? "#FB7185" : z.color }} />}
+              {d && <span style={{ fontSize: 8, color: C.muted, lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{off ? "Off" : rest ? "Rest" : d.title}</span>}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRegenerate, busy, downloadWorkout, prepareWeek, preparing, events, dayAction }) {
   const [moveOpen, setMoveOpen] = useState(false);
-  const [view, setView] = useState("calendar");
+  const [view, setView] = useState("week");
+  const [focusWeek, setFocusWeek] = useState(() => curWeek);
+  const [monthCursor, setMonthCursor] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
   const selWeek = selected ? block.weeks[selected.week] : null;
+  const dateMap = useMemo(() => { const m = {}; block.weeks.forEach((w, wi) => (w.days || []).forEach((d, di) => { m[d.date || isoAdd(w.startDate, di)] = { wi, di, d }; })); return m; }, [block]);
+  const eventDates = useMemo(() => new Set((events || []).map((e) => e.date)), [events]);
   return (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
@@ -780,23 +1012,15 @@ function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRege
         </div>
       )}
 
-      <div style={{ display: "flex", gap: 6, marginBottom: 12 }}>
-        {["calendar", "weeks"].map((v) => (
-          <button key={v} onClick={() => setView(v)} className="ghost" style={{ ...ghostBtn, padding: "5px 12px", fontSize: 12.5, ...(view === v ? { borderColor: C.brand, color: C.text } : {}) }}>{v === "calendar" ? "📅 Calendar" : "Weeks"}</button>
+      <div style={{ display: "flex", gap: 6, marginBottom: 14 }}>
+        {[["week", "Week"], ["month", "Month"]].map(([v, l]) => (
+          <button key={v} onClick={() => setView(v)} className="ghost" style={{ ...ghostBtn, padding: "7px 18px", fontSize: 13.5, fontWeight: 700, ...(view === v ? { borderColor: C.brand, color: C.brand, background: C.brandSoft } : {}) }}>{l}</button>
         ))}
       </div>
 
-      {view === "calendar" ? (
-        <CalendarView weeks={block.weeks} events={events} curWeek={curWeek} selected={selected} setSelected={setSelected} />
-      ) : (
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {block.weeks.map((wk, wi) => {
-            const next = block.weeks[wi + 1];
-            const wkEvents = (events || []).filter((e) => e.date >= wk.startDate && (!next || e.date < next.startDate));
-            return <WeekRow key={wi} wk={wk} wi={wi} isCurrent={wi === curWeek} selected={selected} setSelected={setSelected} wkEvents={wkEvents} />;
-          })}
-        </div>
-      )}
+      {view === "week"
+        ? <WeekList block={block} focusWeek={focusWeek} setFocusWeek={setFocusWeek} curWeek={curWeek} selected={selected} setSelected={setSelected} eventDates={eventDates} />
+        : <MonthGrid dateMap={dateMap} monthCursor={monthCursor} setMonthCursor={setMonthCursor} selected={selected} setSelected={setSelected} eventDates={eventDates} />}
 
       {sel && selWeek && (
         <Card style={{ borderLeft: `4px solid ${sel.status === "missed" ? "#FB7185" : sel.status === "off" ? C.faint : selZone.color}`, marginTop: 16 }}>

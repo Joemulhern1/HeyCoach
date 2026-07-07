@@ -11,7 +11,7 @@ export async function POST() {
       events = [{ id: "legacy", name: store.profile.eventName || "Goal event", date: store.profile.eventDate, priority: "A" }];
     }
     // Instant, deterministic periodization (no model call = no timeout).
-    const block = buildSkeleton(store.profile, store.weights || [], events, store.availability || []);
+    const block = buildSkeleton(store.profile, store.weights || [], events, store.availability || [], store.focuses || []);
     applyAvailability(block, store.availability || []);
     const next = await patchStore({ block, events });
     return Response.json({ block: next.block, events: next.events });

@@ -30,6 +30,8 @@ can ask anything. Multi-user, self-hosted: each member gets their own login and 
 - **Weight log** — quick weigh-ins, current + 7-day average, to-target readout. Feeds the coach.
 - **Conversational coach (with memory + actions)**
 - **Rich nutrition** — daily macro targets periodised to each day's training load, ride fuelling (carbs/hour, pre/during/post), and AI meal ideas with quick recipes using simple family-friendly Lidl-Ireland ingredients.
+- **Adaptive training** — reads your fitness/fatigue/form from logged rides and, when you're overreached, recommends easing the week on the Today screen (one tap to confirm — never silent).
+- **Conversational plan editing** — tell the coach in plain language how you want your calendar to change (e.g. "switch to Zwift racing come October"); it proposes the change and applies it only after you confirm. Focuses: Zwift racing, base, climbing, recovery.
 - **Coach actions** — when the coach recommends easing the week or resting today, a one-tap button applies it to the real plan. — training or nutrition, in plain language.
 - **Strava auto-sync (optional)** — see "Strava" below; off by default.
 
@@ -122,6 +124,7 @@ lib/
   analytics.js    Performance Management Chart (CTL/ATL/TSB), forecast
   zwo.js          build Zwift .zwo structured workouts (FTP-relative)
   meals.js        AI meal/recipe ideas (Lidl Ireland, family-friendly)
+  ftp.js          FTP estimation from logged rides (best 20-min)
   nutrition.js    deterministic daily macro targets + ride fuelling
   fit.js        structured workout -> Garmin .fit (official @garmin/fitsdk)
   strava.js     OAuth + activity fetch (optional)
