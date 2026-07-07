@@ -5,6 +5,8 @@ import { LIBRARY, CATEGORIES } from "../lib/library.js";
 import { computePMC, assessLoad } from "../lib/analytics.js";
 import { dailyTargets, classifyDay, fuelling, DAYTYPE_LABEL, dailyAdvice } from "../lib/nutrition.js";
 import { estimateFtp } from "../lib/ftp.js";
+import { feelSwap } from "../lib/periodize.js";
+import { generateWorkout } from "../lib/generate.js";
 
 const ZONES = {
   recovery: { label: "Recovery", color: "#0EA5E9" },
@@ -411,6 +413,22 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
     const r = await fetch("/api/block/day", { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
     const d = await jget(r); if (r.ok) { setBlock(d.block); if (d.progression) setProgression(d.progression); } else setError(d.error);
   };
+  const setWeekHours = async (weekStart, hours) => {
+    setError("");
+    const r = await fetch("/api/week/hours", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ weekStart, hours }) });
+    const d = await jget(r); if (r.ok) setBlock(d.block); else setError(d.error);
+  };
+  const [feelMsg, setFeelMsg] = useState(null);
+  const applyFeel = async (feel) => {
+    setFeelMsg(null);
+    if (feel === "ok") { setFeelMsg("Grand — today stays as planned."); return; }
+    if (!block || !todayPos) { setFeelMsg("No session scheduled today to shuffle."); return; }
+    const wk = block.weeks[todayPos.week];
+    const sw = feelSwap(wk, todayPos.day, feel);
+    if (!sw) { setFeelMsg(feel === "fresh" ? "Today's already your hardest session this week — go for it." : "Today's already an easy one — ideal for a tired day."); return; }
+    await dayAction({ weekIndex: todayPos.week, dayIndex: todayPos.day, targetDayIndex: sw.targetDi, action: "swap" });
+    setFeelMsg(`Done — today is now ${sw.to}; ${sw.from} moves to ${sw.targetDay}.`);
+  };
 
   const todayIso = new Date().toISOString().slice(0, 10);
   const isoFromWeek = (start, di) => new Date(new Date(start + "T00:00:00Z").getTime() + di * 86400000).toISOString().slice(0, 10);
@@ -522,6 +540,19 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
           <p style={{ lineHeight: 1.6, margin: "8px 0 0", fontSize: 15 }}>{advice}</p>
         </Card>
 
+        {block && today && (
+          <Card>
+            <Eyebrow>How do you feel today?</Eyebrow>
+            <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+              {[["fresh", "💪 Fresh"], ["ok", "👍 Normal"], ["tired", "😮‍💨 Tired"]].map(([k, l]) => (
+                <button key={k} onClick={() => applyFeel(k)} className="ghost" style={{ ...ghostBtn, fontSize: 13.5, padding: "8px 14px" }}>{l}</button>
+              ))}
+            </div>
+            {feelMsg && <p style={{ fontSize: 13.5, color: C.text, margin: "10px 0 0", lineHeight: 1.5 }}>{feelMsg}</p>}
+            <div style={{ fontSize: 11.5, color: C.faint, marginTop: 8 }}>Fresh swaps in this week's hardest session; Tired swaps in an easy one.</div>
+          </Card>
+        )}
+
         {loadRec && !loadDismissed && (
           <Card style={{ borderLeft: "4px solid #EF4444" }}>
             <Eyebrow>⚡ Adaptive check</Eyebrow>
@@ -609,13 +640,14 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
           <BlockView
             block={block} curWeek={curWeek} selected={selected} setSelected={setSelected}
             sel={sel} selZone={selZone} onRegenerate={onRegenerate} busy={busy}
-            downloadWorkout={downloadWorkout} prepareWeek={prepareWeek} preparing={preparing} events={events} dayAction={dayAction}
+            downloadWorkout={downloadWorkout} prepareWeek={prepareWeek} preparing={preparing} events={events} dayAction={dayAction} onSetHours={setWeekHours}
           />
         ) : buildPrompt}
       </>)}
 
       {nav === "workouts" && (<>
-        <Head title="Workouts" sub="56 science-based sessions — preview the profile and send to your Garmin." />
+        <Head title="Workouts" sub="Generate a fresh session on demand, or browse the library — all export to Garmin & Zwift." />
+        <WorkoutGenerator />
         <LibraryCard />
       </>)}
 
@@ -895,7 +927,7 @@ function currentWeekIdx(block) {
 const isoAdd = (startISO, d) => new Date(new Date(startISO + "T00:00:00Z").getTime() + d * 86400000).toISOString().slice(0, 10);
 const fmtDayMon = (iso) => new Date(iso + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 
-function WeekList({ block, focusWeek, setFocusWeek, curWeek, selected, setSelected, eventDates }) {
+function WeekList({ block, focusWeek, setFocusWeek, curWeek, selected, setSelected, eventDates, onSetHours }) {
   const wi = Math.max(0, Math.min(block.weeks.length - 1, focusWeek));
   const wk = block.weeks[wi];
   const today = new Date().toISOString().slice(0, 10);
@@ -912,6 +944,16 @@ function WeekList({ block, focusWeek, setFocusWeek, curWeek, selected, setSelect
         {navBtn("›", wi === block.weeks.length - 1, () => setFocusWeek(wi + 1))}
       </div>
       {wi !== curWeek && <button onClick={() => setFocusWeek(curWeek)} className="ghost" style={{ ...ghostBtn, fontSize: 12.5, marginBottom: 10, width: "100%" }}>Jump to this week</button>}
+      {onSetHours && (
+        <div style={{ background: C.surfaceHi, borderRadius: 12, padding: "10px 12px", marginBottom: 12 }}>
+          <div style={{ fontSize: 12.5, color: C.muted, textAlign: "center", marginBottom: 7 }}>{wk.hoursCap ? <>Fitted to <b style={{ color: C.text }}>{wk.hoursCap}h</b> this week</> : <><b style={{ color: C.text }}>{wk.targetHours}h</b> planned</>} — how much time do you have?</div>
+          <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }}>
+            {[4, 6, 8, 10, 12].map((h) => <button key={h} onClick={() => onSetHours(start, h)} className="ghost" style={{ ...ghostBtn, padding: "5px 13px", fontSize: 12.5, ...(wk.hoursCap === h ? { borderColor: C.brand, color: C.brand, background: C.brandSoft } : {}) }}>{h}h</button>)}
+            {wk.hoursCap && <button onClick={() => onSetHours(start, 0)} className="ghost" style={{ ...ghostBtn, padding: "5px 13px", fontSize: 12.5 }}>Reset</button>}
+          </div>
+          {wk.hoursCap && wk.hoursNote && <div style={{ fontSize: 12, color: C.brand, textAlign: "center", marginTop: 8, lineHeight: 1.4 }}>{wk.hoursNote}</div>}
+        </div>
+      )}
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
         {wk.days.map((d, di) => {
           const z = ZONES[d.intensity] || ZONES.rest;
@@ -987,7 +1029,7 @@ function MonthGrid({ dateMap, monthCursor, setMonthCursor, selected, setSelected
   );
 }
 
-function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRegenerate, busy, downloadWorkout, prepareWeek, preparing, events, dayAction }) {
+function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRegenerate, busy, downloadWorkout, prepareWeek, preparing, events, dayAction, onSetHours }) {
   const [moveOpen, setMoveOpen] = useState(false);
   const [view, setView] = useState("week");
   const [focusWeek, setFocusWeek] = useState(() => curWeek);
@@ -1019,7 +1061,7 @@ function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRege
       </div>
 
       {view === "week"
-        ? <WeekList block={block} focusWeek={focusWeek} setFocusWeek={setFocusWeek} curWeek={curWeek} selected={selected} setSelected={setSelected} eventDates={eventDates} />
+        ? <WeekList block={block} focusWeek={focusWeek} setFocusWeek={setFocusWeek} curWeek={curWeek} selected={selected} setSelected={setSelected} eventDates={eventDates} onSetHours={onSetHours} />
         : <MonthGrid dateMap={dateMap} monthCursor={monthCursor} setMonthCursor={setMonthCursor} selected={selected} setSelected={setSelected} eventDates={eventDates} />}
 
       {sel && selWeek && (
@@ -1188,6 +1230,38 @@ const CAT_COLORS = {
   recovery: "#0EA5E9", endurance: "#10B981", tempo: "#65A30D", sweetspot: "#4D7C0F",
   threshold: "#F59E0B", vo2: "#EF4444", anaerobic: "#DB2777", sprint: "#9333EA", specialty: "#6366F1", test: "#0EA5E9",
 };
+
+function WorkoutGenerator() {
+  const [type, setType] = useState("vo2");
+  const [gen, setGen] = useState(null);
+  const make = () => setGen(generateWorkout(type === "surprise" ? null : type, { seed: Math.floor(Math.random() * 1e9) }));
+  const dl = (fmt) => { const a = document.createElement("a"); a.href = `/api/generate/workout?type=${gen.type}&seed=${gen.seed}&fmt=${fmt}`; a.download = ""; document.body.appendChild(a); a.click(); a.remove(); };
+  const TYPES = [["vo2", "VO2"], ["threshold", "Threshold"], ["sweetspot", "Sweet Spot"], ["tempo", "Tempo"], ["endurance", "Endurance"], ["anaerobic", "Anaerobic"], ["sprint", "Sprint"], ["recovery", "Recovery"], ["surprise", "🎲 Surprise me"]];
+  return (
+    <Card style={{ borderLeft: `4px solid ${C.brand}` }}>
+      <Eyebrow>Make me a workout</Eyebrow>
+      <div style={{ color: C.muted, fontSize: 13, marginTop: 4, marginBottom: 12 }}>Pick a focus and I'll compose a fresh, coaching-sound session on the spot — effectively endless variety.</div>
+      <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
+        {TYPES.map(([k, l]) => <button key={k} onClick={() => setType(k)} className="ghost" style={{ ...ghostBtn, padding: "6px 13px", fontSize: 12.5, ...(type === k ? { borderColor: C.brand, color: C.brand, background: C.brandSoft } : {}) }}>{l}</button>)}
+      </div>
+      <button onClick={make} className="primary" style={{ ...primaryBtn, width: "auto", padding: "10px 20px" }}>{gen ? "↻ Another" : "Generate workout"}</button>
+      {gen && (
+        <div style={{ marginTop: 16, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
+            <div style={{ fontSize: 16, fontWeight: 800 }}>{gen.name}</div>
+            <div style={{ fontFamily: C.mono, color: C.muted, fontSize: 12.5 }}>{gen.durationMin}min · {gen.tss} TSS</div>
+          </div>
+          <p style={{ fontSize: 13.5, color: C.muted, margin: "6px 0 0" }}>{gen.description}</p>
+          <IntervalProfile steps={gen.steps} />
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
+            <button onClick={() => dl("fit")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>⬇ Garmin (.FIT)</button>
+            <button onClick={() => dl("zwo")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>⬇ Zwift (.ZWO)</button>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+}
 
 function IntervalProfile({ steps }) {
   const total = steps.reduce((a, s) => a + s.durationSec, 0) || 1;

@@ -29,6 +29,7 @@ can ask anything. Multi-user, self-hosted: each member gets their own login and 
   days, protein high to hold lean mass, loss rate capped at ~0.5kg/week.
 - **Weight log** — quick weigh-ins, current + 7-day average, to-target readout. Feeds the coach.
 - **Conversational coach (with memory + actions)**
+- **Workout generator** — composes fresh, coaching-sound sessions on demand (VO2/threshold/sweet-spot/tempo/endurance/anaerobic/sprint/recovery, or "surprise me") with seeded variation for effectively endless variety; the plan pulls from it too, so your weekly sessions vary instead of repeating. All export to Garmin & Zwift.
 - **Rich nutrition** — daily macro targets periodised to each day's training load, ride fuelling (carbs/hour, pre/during/post), and AI meal ideas with quick recipes using simple family-friendly Lidl-Ireland ingredients.
 - **Adaptive training** — reads your fitness/fatigue/form from logged rides and, when you're overreached, recommends easing the week on the Today screen (one tap to confirm — never silent).
 - **Conversational plan editing** — tell the coach in plain language how you want your calendar to change (e.g. "switch to Zwift racing come October"); it proposes the change and applies it only after you confirm. Focuses: Zwift racing, base, climbing, recovery.
@@ -120,6 +121,7 @@ lib/
   coach.js      plan + Q&A prompts, screenshot extraction, weight/deficit logic
   parse.js        .fit/.tcx/.gpx -> session summary, rough TSS
   progression.js  per-zone levels (deterministic), zone inference, FTP-bump heuristic
+  generate.js     on-demand workout generator (seeded, coaching-sound, endless variety)
   library.js      56 curated power workouts (science-based), scaled to FTP
   analytics.js    Performance Management Chart (CTL/ATL/TSB), forecast
   zwo.js          build Zwift .zwo structured workouts (FTP-relative)
