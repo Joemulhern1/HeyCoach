@@ -28,7 +28,9 @@ can ask anything. Multi-user, self-hosted: each member gets their own login and 
   diet the rest": near-maintenance on hard/long days to protect FTP, the deficit on easy/rest
   days, protein high to hold lean mass, loss rate capped at ~0.5kg/week.
 - **Weight log** — quick weigh-ins, current + 7-day average, to-target readout. Feeds the coach.
+- **Paste a Strava link to analyse** — after a ride, paste the activity URL on Today or Activity; HeyCoach pulls it through your own Strava connection, computes TSS, intensity and best 20-min power, compares it to the planned session, and feeds FTP detection.
 - **Conversational coach (with memory + actions)**
+- **Rider archetypes** — choose the rider you want to become (GC/Stage racer, Classics, Mountain goat/climber, Sprinter) and the whole plan re-shapes its session mix by phase toward that discipline, building and tapering toward your A/B/C events. Existing profiles default to GC and can switch any time from Edit goal.
 - **Workout generator** — composes fresh, coaching-sound sessions on demand (VO2/threshold/sweet-spot/tempo/endurance/anaerobic/sprint/recovery, or "surprise me") with seeded variation for effectively endless variety; the plan pulls from it too, so your weekly sessions vary instead of repeating. All export to Garmin & Zwift.
 - **Rich nutrition** — daily macro targets periodised to each day's training load, ride fuelling (carbs/hour, pre/during/post), and AI meal ideas with quick recipes using simple family-friendly Lidl-Ireland ingredients.
 - **Adaptive training** — reads your fitness/fatigue/form from logged rides and, when you're overreached, recommends easing the week on the Today screen (one tap to confirm — never silent).

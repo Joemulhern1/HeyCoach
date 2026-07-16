@@ -5,7 +5,7 @@ import { LIBRARY, CATEGORIES } from "../lib/library.js";
 import { computePMC, assessLoad } from "../lib/analytics.js";
 import { dailyTargets, classifyDay, fuelling, DAYTYPE_LABEL, dailyAdvice } from "../lib/nutrition.js";
 import { estimateFtp } from "../lib/ftp.js";
-import { feelSwap } from "../lib/periodize.js";
+import { feelSwap, ARCHETYPES, ARCHETYPE_KEYS } from "../lib/periodize.js";
 import { generateWorkout } from "../lib/generate.js";
 
 const ZONES = {
@@ -36,7 +36,7 @@ const C = {
   brandSoft: "var(--brandSoft)", mono: "var(--mono)",
 };
 const input = { background: C.bg, border: `1px solid ${C.border}`, color: C.text, borderRadius: 10, padding: "10px 12px", fontSize: 15, outline: "none", width: "100%" };
-const primaryBtn = { background: C.brand, color: "#fff", border: "none", borderRadius: 12, padding: "14px 0", fontSize: 16, fontWeight: 700, cursor: "pointer", width: "100%" };
+const primaryBtn = { background: "#111827", color: "#fff", border: "none", borderRadius: 10, padding: "13px 0", fontSize: 15, fontWeight: 600, cursor: "pointer", width: "100%", letterSpacing: 0.1 };
 const ghostBtn = { background: "transparent", border: `1px solid ${C.border}`, color: C.muted, borderRadius: 10, padding: "8px 14px", fontSize: 13, cursor: "pointer", fontWeight: 600 };
 
 // Parse a response safely — if the server returns non-JSON (timeout/crash page),
@@ -152,7 +152,7 @@ export default function HeyCoach() {
   );
 }
 
-const Logo = () => <span style={{ width: 22, height: 22, borderRadius: 7, background: "linear-gradient(135deg,#6366F1,#8B5CF6)", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 900, flexShrink: 0 }}>H</span>;
+const Logo = () => <span style={{ width: 22, height: 22, borderRadius: 7, background: "#111827", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 900, flexShrink: 0 }}>H</span>;
 const ErrBanner = ({ children }) => <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 14 }}>{children}</div>;
 
 function CenterWrap({ children }) {
@@ -166,6 +166,21 @@ function CenterWrap({ children }) {
   );
 }
 
+function stepsTss(steps) {
+  let t = 0; for (const s of (steps || [])) { const mid = ((s.powerLowPct + s.powerHighPct) / 2) / 100; t += (s.durationSec / 3600) * mid * mid * 100; } return Math.round(t);
+}
+function mainSetText(steps, ftp) {
+  const work = (steps || []).filter((s) => s.intensity === "active" && s.powerHighPct > 78);
+  if (!work.length) return null;
+  const key = (s) => `${s.durationSec}-${s.powerLowPct}-${s.powerHighPct}`;
+  const counts = {}; work.forEach((s) => { counts[key(s)] = (counts[key(s)] || 0) + 1; });
+  const topKey = Object.keys(counts).reduce((a, b) => (counts[b] > counts[a] ? b : a));
+  const rep = work.find((s) => key(s) === topKey); const n = counts[topKey];
+  const dur = rep.durationSec >= 60 ? `${Math.round(rep.durationSec / 60)}min` : `${rep.durationSec}s`;
+  const watts = ftp ? ` ≈ ${Math.round(ftp * rep.powerLowPct / 100)}–${Math.round(ftp * rep.powerHighPct / 100)}W` : "";
+  return `${n} × ${dur} @ ${rep.powerLowPct}–${rep.powerHighPct}% FTP${watts}`;
+}
+
 function lastSessionRemark(s, tss) {
   const t = tss ? ` — ${tss} TSS in the bank` : "";
   switch (s.feedback) {
@@ -177,17 +192,34 @@ function lastSessionRemark(s, tss) {
   }
 }
 
+
+const Ic = ({ d, size = 17 }) => (
+  <svg width={size} height={size} viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>{d}</svg>
+);
+const ICONS = {
+  today: <Ic d={<><path d="M3.5 9.5 10 3.5l6.5 6V16a1 1 0 0 1-1 1h-4v-4.5h-3V17h-4a1 1 0 0 1-1-1V9.5Z" /></>} />,
+  calendar: <Ic d={<><rect x="3" y="4.5" width="14" height="12" rx="1.5" /><path d="M3 8.5h14M7 3v3M13 3v3" /></>} />,
+  workouts: <Ic d={<path d="M11 2.5 5 11.5h4L8 17.5l6-9h-4l1-6Z" />} />,
+  analytics: <Ic d={<><path d="M3 16.5h14" /><path d="M4.5 13.5 8.5 9l3 3 4-5.5" /></>} />,
+  nutrition: <Ic d={<><path d="M3.5 10.5h13a6.5 6.5 0 0 1-13 0Z" /><path d="M7 7.5c0-1.2 1-1.4 1-2.6M11 7.5c0-1.2 1-1.4 1-2.6" /></>} />,
+  activity: <Ic d={<><path d="M4 5.5h12M4 10h12M4 14.5h8" /></>} />,
+  coach: <Ic d={<path d="M4 4.5h12a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H9l-3.5 3V14H4a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1Z" />} />,
+  admin: <Ic d={<><circle cx="10" cy="10" r="2.6" /><path d="M10 3v2.2M10 14.8V17M3 10h2.2M14.8 10H17M5.2 5.2l1.5 1.5M13.3 13.3l1.5 1.5M14.8 5.2l-1.5 1.5M6.7 13.3l-1.5 1.5" /></>} />,
+  logout: <Ic d={<><path d="M12.5 6.5V4.5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h6.5a1 1 0 0 0 1-1v-2" /><path d="M8.5 10H17M14.5 7.5 17 10l-2.5 2.5" /></>} />,
+  race: <Ic size={12} d={<path d="M5 3v14M5 3.5h9l-2.5 3L14 9.5H5" fill="currentColor" strokeWidth="1.4" />} />,
+};
+
 const NAV = [
   { label: "Train" },
-  { id: "today", label: "Today", ic: "🏠" },
-  { id: "calendar", label: "Calendar", ic: "🗓" },
-  { id: "workouts", label: "Workouts", ic: "🚴" },
+  { id: "today", label: "Today", ic: "today" },
+  { id: "calendar", label: "Calendar", ic: "calendar" },
+  { id: "workouts", label: "Workouts", ic: "workouts" },
   { label: "Track" },
-  { id: "analytics", label: "Analytics", ic: "📈" },
-  { id: "nutrition", label: "Nutrition", ic: "🍽" },
-  { id: "activity", label: "Activity", ic: "📋" },
+  { id: "analytics", label: "Analytics", ic: "analytics" },
+  { id: "nutrition", label: "Nutrition", ic: "nutrition" },
+  { id: "activity", label: "Activity", ic: "activity" },
   { label: "Ask" },
-  { id: "coach", label: "Coach", ic: "💬" },
+  { id: "coach", label: "Coach", ic: "coach" },
 ];
 
 function AppShell({ me, nav, setNav, children }) {
@@ -200,16 +232,16 @@ function AppShell({ me, nav, setNav, children }) {
       <aside className={"sidebar" + (open ? " open" : "")}>
         <div className="brandmark"><Logo /> HeyCoach</div>
         {NAV.map((n, i) => n.id
-          ? <button key={n.id} className={"navitem" + (nav === n.id ? " active" : "")} onClick={() => go(n.id)}><span className="ic">{n.ic}</span>{n.label}</button>
+          ? <button key={n.id} className={"navitem" + (nav === n.id ? " active" : "")} onClick={() => go(n.id)}><span className="ic">{ICONS[n.ic]}</span>{n.label}</button>
           : <div key={"s" + i} className="navlabel">{n.label}</div>
         )}
         <div className="sidefoot">
-          {me?.role === "admin" && <a href="/admin" className="navitem"><span className="ic">⚙️</span>Admin</a>}
+          {me?.role === "admin" && <a href="/admin" className="navitem"><span className="ic">{ICONS.admin}</span>Admin</a>}
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 11px" }}>
             <span style={{ width: 30, height: 30, borderRadius: "50%", background: C.brandSoft, color: C.brand, display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{(me?.displayName || me?.username || "?").slice(0, 1).toUpperCase()}</span>
             <div style={{ minWidth: 0 }}><div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{me?.displayName || me?.username || "Athlete"}</div></div>
           </div>
-          <button className="navitem" onClick={logout}><span className="ic">⎋</span>Log out</button>
+          <button className="navitem" onClick={logout}><span className="ic">{ICONS.logout}</span>Log out</button>
         </div>
       </aside>
       <div className="content">
@@ -246,6 +278,17 @@ function Onboarding({ profile, setProfile, onBuild, busy }) {
       <h2 style={{ margin: "8px 0 4px", fontSize: 26, fontWeight: 800, letterSpacing: -0.5 }}>Tell HeyCoach the goal</h2>
       <p style={{ color: C.muted, margin: "0 0 22px", fontSize: 14, lineHeight: 1.5 }}>Power and weight targets. The coach periodises toward the date and runs the deficit around your training.</p>
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+        <div style={{ gridColumn: "1 / -1" }}>
+          <Field label="The rider you want to become">
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              {ARCHETYPE_KEYS.map((k) => {
+                const active = (profile.riderType || "gc") === k;
+                return <button key={k} type="button" onClick={() => upd("riderType", k)} className="ghost" style={{ ...ghostBtn, padding: "8px 14px", fontSize: 13, ...(active ? { borderColor: C.brand, color: C.brand, background: C.brandSoft } : {}) }}>{ARCHETYPES[k].label}</button>;
+              })}
+            </div>
+            <div style={{ fontSize: 12, color: C.muted, marginTop: 7, lineHeight: 1.5 }}>All your training builds toward {ARCHETYPES[profile.riderType || "gc"].note}. Change this any time and rebuild to re-shape the plan.</div>
+          </Field>
+        </div>
         <div style={{ gridColumn: "1 / -1" }}><Field label="Goal event"><input style={input} value={profile.eventName} onChange={(e) => upd("eventName", e.target.value)} /></Field></div>
         <Field label="Event date"><input type="date" style={input} value={profile.eventDate} onChange={(e) => upd("eventDate", e.target.value)} /></Field>
         <Field label="Experience">
@@ -262,15 +305,35 @@ function Onboarding({ profile, setProfile, onBuild, busy }) {
         Target power-to-weight: <span style={{ fontFamily: C.mono, color: C.brand, fontWeight: 700 }}>{projWkg} W/kg</span> at {profile.targetFTP}W / {profile.targetWeightKg}kg
       </div>
       <div style={{ marginTop: 18 }}>
-        <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Weekly shape — tap a day to change</span>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 6, marginTop: 8 }}>
-          {DAYS.map((d) => (
-            <button key={d} className="daytoggle" onClick={() => cycle(d)} style={{ background: C.surface, border: `1px solid ${C.border}`, borderTop: `3px solid ${typeColor(profile.schedule[d])}`, borderRadius: 8, padding: "10px 0 8px", cursor: "pointer", color: C.text }}>
-              <div style={{ fontSize: 12, fontWeight: 700 }}>{d}</div>
-              <div style={{ fontSize: 10, color: C.muted, textTransform: "capitalize", marginTop: 4 }}>{profile.schedule[d]}</div>
-            </button>
-          ))}
+        <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Your week — what each day is for, and how much time you have</span>
+        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
+          {DAYS.map((d) => {
+            const type = profile.schedule[d];
+            const hrs = Number(profile.dayHours?.[d]) || 0;
+            const setType = (t) => setProfile((p) => ({ ...p, schedule: { ...p.schedule, [d]: t } }));
+            const setHrs = (v) => setProfile((p) => ({ ...p, dayHours: { ...(p.dayHours || {}), [d]: Number(v) } }));
+            const fmtH = (h) => h === 0 ? "Auto" : (h >= 1 ? `${Math.floor(h)}h${h % 1 ? String(Math.round((h % 1) * 60)).padStart(2, "0") : ""}` : `${Math.round(h * 60)}min`);
+            return (
+              <div key={d} style={{ display: "flex", alignItems: "center", gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${typeColor(type)}`, borderRadius: 8, padding: "8px 10px" }}>
+                <div style={{ width: 34, fontSize: 12.5, fontWeight: 700 }}>{d}</div>
+                <div style={{ display: "flex", gap: 4 }}>
+                  {["ride", "gym", "rest"].map((t) => (
+                    <button key={t} type="button" onClick={() => setType(t)} className="ghost" style={{ ...ghostBtn, padding: "3px 9px", fontSize: 11, textTransform: "capitalize", ...(type === t ? { borderColor: typeColor(t), color: C.text, fontWeight: 700 } : {}) }}>{t}</button>
+                  ))}
+                </div>
+                {type === "ride" ? (
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                    <input type="range" min="0" max="4" step="0.25" value={hrs} onChange={(e) => setHrs(e.target.value)} style={{ flex: 1, accentColor: "var(--brand)", minWidth: 0 }} />
+                    <span style={{ fontSize: 11.5, fontFamily: C.mono, fontWeight: 700, color: hrs ? C.brand : C.faint, width: 42, textAlign: "right" }}>{fmtH(hrs)}</span>
+                  </div>
+                ) : (
+                  <div style={{ flex: 1, fontSize: 11, color: C.faint, textAlign: "right" }}>{type === "gym" ? "~45min strength" : "recovery"}</div>
+                )}
+              </div>
+            );
+          })}
         </div>
+        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 7, lineHeight: 1.5 }}>Slide to cap a ride day's time — sessions fit the slot, protecting the intervals. "Auto" lets the plan choose.</div>
       </div>
       <button className="primary" onClick={onBuild} disabled={busy} style={{ ...primaryBtn, marginTop: 24, opacity: busy ? 0.6 : 1 }}>{busy ? "Building…" : "Build my week →"}</button>
     </div>
@@ -288,6 +351,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
   const [preparing, setPreparing] = useState(null);
   const [kg, setKg] = useState("");
   const fileRef = useRef(null); const shotRef = useRef(null);
+  const todayFileRef = useRef(null); const todayShotRef = useRef(null);
   const curWeek = block ? currentWeekIdx(block) : 0;
   const sel = selected && block ? block.weeks[selected.week]?.days?.[selected.day] : null;
   const selZone = sel ? ZONES[sel.intensity] || ZONES.rest : null;
@@ -326,6 +390,28 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
       const d = await jget(r); if (r.ok) { setBlock(d.block); if (d.chat) setChat(d.chat); setLoadDismissed(true); } else setError(d.error || "Couldn't apply that.");
     } catch { setError("Couldn't apply that — try again."); }
   };
+  const [stravaUrl, setStravaUrl] = useState("");
+  const [stravaBusy, setStravaBusy] = useState(false);
+  const [stravaNote, setStravaNote] = useState("");
+  const analyzeStrava = async () => {
+    if (!stravaUrl.trim() || stravaBusy) return;
+    setStravaBusy(true); setStravaNote(""); setError("");
+    try {
+      const r = await fetch("/api/strava/activity", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: stravaUrl.trim() }) });
+      const d = await jget(r);
+      if (r.ok) { setSessions(d.sessions); setStravaNote(d.note); setStravaUrl(""); } else setStravaNote(d.error || "Couldn't analyse that link.");
+    } catch { setStravaNote("Couldn't analyse that link — try again."); } finally { setStravaBusy(false); }
+  };
+  const stravaPasteBox = (
+    <div style={{ marginTop: 10 }}>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input style={{ ...input, flex: 1, fontSize: 13.5 }} placeholder="Paste a Strava activity link to analyse…" value={stravaUrl} onChange={(e) => setStravaUrl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && analyzeStrava()} />
+        <button onClick={analyzeStrava} disabled={stravaBusy} className="primary" style={{ ...primaryBtn, width: "auto", padding: "0 18px", fontSize: 13.5, opacity: stravaBusy ? 0.6 : 1 }}>{stravaBusy ? "Analysing…" : "Analyse"}</button>
+      </div>
+      {stravaNote && <div style={{ fontSize: 13, color: C.text, background: C.surfaceHi, borderRadius: 8, padding: "9px 12px", marginTop: 8, lineHeight: 1.5 }}>{stravaNote}</div>}
+      {!strava.connected && <div style={{ fontSize: 11.5, color: C.faint, marginTop: 6 }}>Requires your Strava connection{strava.configured ? " — connect it below" : " (Strava keys not configured on this deployment)"}.</div>}
+    </div>
+  );
   const [genMealsBusy, setGenMealsBusy] = useState(false);
   const genMeals = async () => {
     setGenMealsBusy(true); setError("");
@@ -468,17 +554,18 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
           <div style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>The coach reads these and adapts your next week.</div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={() => shotRef.current?.click()} className="ghost" style={ghostBtn} disabled={shotting}>{shotting ? "Reading…" : "📷 Screenshot"}</button>
-          <button onClick={() => fileRef.current?.click()} className="ghost" style={ghostBtn} disabled={uploading}>{uploading ? "Reading…" : "📁 File"}</button>
-          <button onClick={() => setShowManual((v) => !v)} className="ghost" style={ghostBtn}>✎ Manual</button>
+          <button onClick={() => shotRef.current?.click()} className="ghost" style={ghostBtn} disabled={shotting}>{shotting ? "Reading…" : "Log screenshot"}</button>
+          <button onClick={() => fileRef.current?.click()} className="ghost" style={ghostBtn} disabled={uploading}>{uploading ? "Reading…" : "Log ride file"}</button>
+          <button onClick={() => setShowManual((v) => !v)} className="ghost" style={ghostBtn}>Log manually</button>
           {strava.configured && (strava.connected
-            ? <button onClick={syncStrava} className="ghost" style={ghostBtn} disabled={syncing}>{syncing ? "Syncing…" : "↻ Strava"}</button>
+            ? <button onClick={syncStrava} className="ghost" style={ghostBtn} disabled={syncing}>{syncing ? "Syncing…" : "Sync Strava"}</button>
             : <a href="/api/strava/connect" className="ghost" style={{ ...ghostBtn, textDecoration: "none" }}>Connect Strava</a>)}
           <input ref={shotRef} type="file" accept="image/*" onChange={uploadShot} style={{ display: "none" }} />
           <input ref={fileRef} type="file" accept=".fit,.tcx,.gpx" multiple onChange={uploadFiles} style={{ display: "none" }} />
         </div>
       </div>
       {showManual && <ManualForm onAdd={addManual} onCancel={() => setShowManual(false)} />}
+      {stravaPasteBox}
       {strava.connected && (
         <label style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 12, fontSize: 12.5, color: C.muted }}>
           <input type="checkbox" checked={!!profile.useStravaForCoaching} onChange={(e) => saveProfile({ ...profile, useStravaForCoaching: e.target.checked })} />
@@ -511,7 +598,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {nav === "today" && (<>
-        <Head title={`Hi${me?.displayName || me?.username ? ", " + (me.displayName || me.username) : ""} 👋`} sub="Here's where you stand today." />
+        <Head title={`${(h=>h<12?"Good morning":h<18?"Good afternoon":"Good evening")(new Date().getHours())}${me?.displayName || me?.username ? ", " + (me.displayName || me.username) : ""}`} sub={block?.riderLabel ? `Training you as a ${block.riderLabel}.` : "Here's where you stand today."} />
         <Card><GoalHeader profile={profile} weights={weights} onEdit={onEdit} events={events} /></Card>
         {block ? (
           <Card style={tz ? { borderLeft: `4px solid ${tz.color}` } : {}}>
@@ -523,12 +610,31 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
                   <div style={{ fontFamily: C.mono, color: tz.color, fontWeight: 700 }}>{tz.label} · {today.duration}</div>
                 </div>
                 <p style={{ color: C.muted, marginTop: 8, lineHeight: 1.6, marginBottom: 0 }}>{today.description}</p>
+                {today.steps?.length > 0 && (
+                  <div style={{ marginTop: 12 }}>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 4 }}>
+                      <Metric v={`${stepsTss(today.steps)}`} l="TSS" />
+                      {mainSetText(today.steps, profile?.currentFTP) && <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 10.5, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Main set</div><div style={{ fontSize: 13.5, fontWeight: 700, fontFamily: C.mono }}>{mainSetText(today.steps, profile.currentFTP)}</div></div>}
+                    </div>
+                    <IntervalProfile steps={today.steps} />
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
                   {today.type === "ride" && today.steps?.length > 0 && <>
-                    <button onClick={() => downloadWorkout(todayPos.week, todayPos.day, "fit")} className="ghost" style={ghostBtn}>⬇ Garmin (.FIT)</button>
-                    <button onClick={() => downloadWorkout(todayPos.week, todayPos.day, "zwo")} className="ghost" style={ghostBtn}>⬇ Zwift (.ZWO)</button>
+                    <button onClick={() => downloadWorkout(todayPos.week, todayPos.day, "fit")} className="ghost" style={ghostBtn}>Garmin (.FIT)</button>
+                    <button onClick={() => downloadWorkout(todayPos.week, todayPos.day, "zwo")} className="ghost" style={ghostBtn}>Zwift (.ZWO)</button>
                   </>}
                   <button onClick={() => { setSelected(todayPos); setNav("calendar"); }} className="ghost" style={ghostBtn}>Open in calendar →</button>
+                </div>
+                <div style={{ marginTop: 14, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
+                  <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 8 }}>Done your ride? Log it and I'll adapt:</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button onClick={() => todayShotRef.current?.click()} className="ghost" style={ghostBtn} disabled={shotting}>{shotting ? "Reading…" : "Log screenshot"}</button>
+                    <button onClick={() => todayFileRef.current?.click()} className="ghost" style={ghostBtn} disabled={uploading}>{uploading ? "Reading…" : "Log ride file"}</button>
+                  </div>
+                  <input ref={todayShotRef} type="file" accept="image/*" onChange={uploadShot} style={{ display: "none" }} />
+                  <input ref={todayFileRef} type="file" accept=".fit,.tcx,.gpx" multiple onChange={uploadFiles} style={{ display: "none" }} />
+                  {stravaPasteBox}
                 </div>
               </div>
             ) : <p style={{ color: C.muted, marginTop: 8, marginBottom: 0 }}>Nothing scheduled today — enjoy the rest.</p>}
@@ -544,7 +650,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
           <Card>
             <Eyebrow>How do you feel today?</Eyebrow>
             <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-              {[["fresh", "💪 Fresh"], ["ok", "👍 Normal"], ["tired", "😮‍💨 Tired"]].map(([k, l]) => (
+              {[["fresh", "Fresh"], ["ok", "Normal"], ["tired", "Tired"]].map(([k, l]) => (
                 <button key={k} onClick={() => applyFeel(k)} className="ghost" style={{ ...ghostBtn, fontSize: 13.5, padding: "8px 14px" }}>{l}</button>
               ))}
             </div>
@@ -555,7 +661,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
 
         {loadRec && !loadDismissed && (
           <Card style={{ borderLeft: "4px solid #EF4444" }}>
-            <Eyebrow>⚡ Adaptive check</Eyebrow>
+            <Eyebrow>Adaptive check</Eyebrow>
             <p style={{ lineHeight: 1.6, margin: "8px 0 0", fontSize: 15 }}>{loadRec.headline}</p>
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
               <button onClick={() => applyCoach(loadRec.action)} className="primary" style={{ ...primaryBtn, width: "auto", padding: "8px 16px", fontSize: 13 }}>✓ Ease this week</button>
@@ -566,7 +672,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
 
         {ftpRec?.suggestion && !ftpDismissed && (
           <Card style={{ borderLeft: "4px solid #10B981" }}>
-            <Eyebrow>⚡ FTP auto-detect</Eyebrow>
+            <Eyebrow>FTP detection</Eyebrow>
             <p style={{ lineHeight: 1.6, margin: "8px 0 0", fontSize: 15 }}>
               Your rides suggest a new FTP: <b>{ftpRec.from}W → <span style={{ color: "#10B981" }}>{ftpRec.suggestion}W</span></b> ({ftpRec.deltaW > 0 ? "+" : ""}{ftpRec.deltaW}W), from {ftpRec.basis}. Updating rescales every upcoming workout and export.
             </p>
@@ -578,7 +684,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
         )}
         {ftpRec?.needTest && !ftpDismissed && (
           <Card style={{ borderLeft: `4px solid ${C.brand}` }}>
-            <Eyebrow>⚡ FTP check</Eyebrow>
+            <Eyebrow>FTP check</Eyebrow>
             <p style={{ lineHeight: 1.6, margin: "8px 0 0", fontSize: 15 }}>I haven't seen a hard enough effort to read your FTP lately. A quick ramp or 20-min test keeps every workout target accurate.</p>
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
               <button onClick={() => setNav("workouts")} className="primary" style={{ ...primaryBtn, width: "auto", padding: "8px 16px", fontSize: 13 }}>See test workouts →</button>
@@ -648,7 +754,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
       {nav === "workouts" && (<>
         <Head title="Workouts" sub="Generate a fresh session on demand, or browse the library — all export to Garmin & Zwift." />
         <WorkoutGenerator />
-        <LibraryCard />
+        <LibraryCard riderType={profile?.riderType || "gc"} />
       </>)}
 
       {nav === "analytics" && (<>
@@ -970,7 +1076,7 @@ function WeekList({ block, focusWeek, setFocusWeek, curWeek, selected, setSelect
                 <div style={{ fontSize: 11, color: C.muted }}>{fmtDayMon(date)}</div>
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, textDecoration: missed ? "line-through" : "none", color: missed ? C.muted : C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev ? "🏁 " : ""}{off ? "Off" : rest ? "Rest" : d.title}</div>
+                <div style={{ fontSize: 15, fontWeight: 700, textDecoration: missed ? "line-through" : "none", color: missed ? C.muted : C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev ? <span style={{ color: C.brand, marginRight: 5, verticalAlign: -1 }}>{ICONS.race}</span> : null}{off ? "Off" : rest ? "Rest" : d.title}</div>
                 <div style={{ fontSize: 12, color: C.muted }}>{rest ? "Recover" : off ? "Time off" : `${z.label} · ${d.duration}`}</div>
               </div>
               <span style={{ color: C.faint, fontSize: 20, flexShrink: 0 }}>›</span>
@@ -1017,7 +1123,7 @@ function MonthGrid({ dateMap, monthCursor, setMonthCursor, selected, setSelected
               style={{ aspectRatio: "1 / 1", minHeight: 42, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 4, border: `1px solid ${active ? z.color : isToday ? C.brand : C.border}`, borderRadius: 8, cursor: hit ? "pointer" : "default", background: active ? C.brandSoft : C.surface, opacity: inMonth ? 1 : 0.38, color: C.text }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 10.5, fontWeight: 800, color: isToday ? C.brand : C.muted }}>{c.getUTCDate()}</span>
-                {ev && <span style={{ fontSize: 9 }}>🏁</span>}
+                {ev && <span style={{ color: C.brand }}>{ICONS.race}</span>}
               </div>
               {d && !rest && !off && <span style={{ height: 4, borderRadius: 2, background: missed ? "#FB7185" : z.color }} />}
               {d && <span style={{ fontSize: 8, color: C.muted, lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{off ? "Off" : rest ? "Rest" : d.title}</span>}
@@ -1041,7 +1147,7 @@ function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRege
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
         <div><Eyebrow>Training plan</Eyebrow><div style={{ fontSize: 17, fontWeight: 800, marginTop: 2 }}>{busy ? "Re-planning around your changes…" : `${block.weeks.length} weeks · rolling`}</div></div>
-        <button onClick={onRegenerate} className="ghost" style={ghostBtn} disabled={busy}>{busy ? "…" : "↻ Rebuild"}</button>
+        <button onClick={onRegenerate} className="ghost" style={ghostBtn} disabled={busy}>{busy ? "…" : "Rebuild"}</button>
       </div>
       {block.summary && <p style={{ color: C.muted, fontSize: 13.5, lineHeight: 1.5, margin: "0 0 12px" }}>{block.summary}</p>}
       {Array.isArray(block.phases) && block.phases.length > 0 && (
@@ -1072,19 +1178,28 @@ function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRege
           </div>
           {sel.status === "missed" && <div style={{ color: "#FB7185", fontSize: 12, fontWeight: 700, marginTop: 6 }}>✕ Marked missed</div>}
           <p style={{ lineHeight: 1.6, margin: "10px 0 0", fontSize: 15 }}>{sel.description}</p>
+          {sel.steps?.length > 0 && sel.status !== "off" && (
+            <div style={{ marginTop: 12 }}>
+              <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 4 }}>
+                <Metric v={`${stepsTss(sel.steps)}`} l="TSS" />
+                {mainSetText(sel.steps, null) && <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 10.5, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Main set</div><div style={{ fontSize: 13.5, fontWeight: 700, fontFamily: C.mono }}>{mainSetText(sel.steps, null)}</div></div>}
+              </div>
+              <IntervalProfile steps={sel.steps} />
+            </div>
+          )}
           {sel.type === "ride" && sel.status !== "off" && (sel.steps?.length > 0
             ? <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
-                <button onClick={() => downloadWorkout(selected.week, selected.day, "fit")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>⬇ Garmin (.FIT) · {sel.steps.length} steps</button>
-                <button onClick={() => downloadWorkout(selected.week, selected.day, "zwo")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>⬇ Zwift (.ZWO)</button>
+                <button onClick={() => downloadWorkout(selected.week, selected.day, "fit")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>Garmin (.FIT) · {sel.steps.length} steps</button>
+                <button onClick={() => downloadWorkout(selected.week, selected.day, "zwo")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>Zwift (.ZWO)</button>
               </div>
             : <button onClick={() => prepareWeek(selected.week)} className="ghost" style={{ ...ghostBtn, marginTop: 14 }} disabled={preparing === selected.week}>{preparing === selected.week ? "Preparing week…" : "Prepare this week's intervals →"}</button>
           )}
           {sel.status !== "off" && (
             <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-              <button onClick={() => setMoveOpen((v) => !v)} className="ghost" style={{ ...ghostBtn, fontSize: 12.5 }}>↔ Move</button>
+              <button onClick={() => setMoveOpen((v) => !v)} className="ghost" style={{ ...ghostBtn, fontSize: 12.5 }}>Move</button>
               {sel.status === "missed"
                 ? <button onClick={() => dayAction({ weekIndex: selected.week, dayIndex: selected.day, action: "clear" })} className="ghost" style={{ ...ghostBtn, fontSize: 12.5 }}>Undo missed</button>
-                : <button onClick={() => dayAction({ weekIndex: selected.week, dayIndex: selected.day, action: "missed" })} className="ghost" style={{ ...ghostBtn, fontSize: 12.5, color: "#FB7185", borderColor: "#FB7185" }}>✕ Mark missed</button>}
+                : <button onClick={() => dayAction({ weekIndex: selected.week, dayIndex: selected.day, action: "missed" })} className="ghost" style={{ ...ghostBtn, fontSize: 12.5, color: "#FB7185", borderColor: "#FB7185" }}>Mark missed</button>}
             </div>
           )}
           {moveOpen && (
@@ -1135,7 +1250,7 @@ function WeekRow({ wk, wi, isCurrent, selected, setSelected, wkEvents }) {
       {(wkEvents || []).map((e) => (
         <div key={e.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: C.bg, border: `1px solid ${PRIO[e.priority] || C.brand}`, borderRadius: 8, padding: "3px 9px", marginBottom: 8, marginRight: 6, fontSize: 11.5 }}>
           <span style={{ width: 7, height: 7, borderRadius: 999, background: PRIO[e.priority] || C.brand }} />
-          <b>🏁 {e.name}</b> <span style={{ color: C.muted }}>· {e.priority}</span>
+          <b><span style={{ color: C.brand, marginRight: 4, verticalAlign: -1 }}>{ICONS.race}</span>{e.name}</b> <span style={{ color: C.muted }}>· {e.priority}</span>
         </div>
       ))}
       {wk.focus && <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>{wk.focus}</div>}
@@ -1146,7 +1261,7 @@ function WeekRow({ wk, wi, isCurrent, selected, setSelected, wkEvents }) {
           const off = d.status === "off";
           const missed = d.status === "missed";
           const topColor = off ? C.faint : missed ? "#FB7185" : z.color;
-          const label = off ? (/illness/i.test(d.title) ? "🤒 Off" : "✈ Off") : d.type === "rest" ? "Rest" : d.title;
+          const label = off ? "Off" : d.type === "rest" ? "Rest" : d.title;
           return (
             <button key={di} onClick={() => setSelected(active ? null : { week: wi, day: di })} className="daycard"
               style={{ textAlign: "left", background: active ? C.bg : off ? "rgba(90,107,115,0.12)" : "transparent", border: `1px solid ${active ? topColor : C.border}`, borderTop: `3px solid ${topColor}`, borderRadius: 7, padding: "7px 5px", cursor: "pointer", color: C.text, minHeight: 50, display: "flex", flexDirection: "column", gap: 2, overflow: "hidden", opacity: off ? 0.7 : 1 }}>
@@ -1228,7 +1343,7 @@ function suggestFtpClient(sessions, profile) {
 
 const CAT_COLORS = {
   recovery: "#0EA5E9", endurance: "#10B981", tempo: "#65A30D", sweetspot: "#4D7C0F",
-  threshold: "#F59E0B", vo2: "#EF4444", anaerobic: "#DB2777", sprint: "#9333EA", specialty: "#6366F1", test: "#0EA5E9",
+  threshold: "#F59E0B", vo2: "#EF4444", anaerobic: "#DB2777", sprint: "#9333EA", specialty: "#4338CA", test: "#0EA5E9",
 };
 
 function WorkoutGenerator() {
@@ -1236,7 +1351,7 @@ function WorkoutGenerator() {
   const [gen, setGen] = useState(null);
   const make = () => setGen(generateWorkout(type === "surprise" ? null : type, { seed: Math.floor(Math.random() * 1e9) }));
   const dl = (fmt) => { const a = document.createElement("a"); a.href = `/api/generate/workout?type=${gen.type}&seed=${gen.seed}&fmt=${fmt}`; a.download = ""; document.body.appendChild(a); a.click(); a.remove(); };
-  const TYPES = [["vo2", "VO2"], ["threshold", "Threshold"], ["sweetspot", "Sweet Spot"], ["tempo", "Tempo"], ["endurance", "Endurance"], ["anaerobic", "Anaerobic"], ["sprint", "Sprint"], ["recovery", "Recovery"], ["surprise", "🎲 Surprise me"]];
+  const TYPES = [["vo2", "VO2"], ["threshold", "Threshold"], ["sweetspot", "Sweet Spot"], ["tempo", "Tempo"], ["endurance", "Endurance"], ["anaerobic", "Anaerobic"], ["sprint", "Sprint"], ["recovery", "Recovery"], ["surprise", "Surprise me"]];
   return (
     <Card style={{ borderLeft: `4px solid ${C.brand}` }}>
       <Eyebrow>Make me a workout</Eyebrow>
@@ -1244,7 +1359,7 @@ function WorkoutGenerator() {
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 14 }}>
         {TYPES.map(([k, l]) => <button key={k} onClick={() => setType(k)} className="ghost" style={{ ...ghostBtn, padding: "6px 13px", fontSize: 12.5, ...(type === k ? { borderColor: C.brand, color: C.brand, background: C.brandSoft } : {}) }}>{l}</button>)}
       </div>
-      <button onClick={make} className="primary" style={{ ...primaryBtn, width: "auto", padding: "10px 20px" }}>{gen ? "↻ Another" : "Generate workout"}</button>
+      <button onClick={make} className="primary" style={{ ...primaryBtn, width: "auto", padding: "10px 20px" }}>{gen ? "Generate another" : "Generate workout"}</button>
       {gen && (
         <div style={{ marginTop: 16, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
@@ -1254,8 +1369,8 @@ function WorkoutGenerator() {
           <p style={{ fontSize: 13.5, color: C.muted, margin: "6px 0 0" }}>{gen.description}</p>
           <IntervalProfile steps={gen.steps} />
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
-            <button onClick={() => dl("fit")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>⬇ Garmin (.FIT)</button>
-            <button onClick={() => dl("zwo")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>⬇ Zwift (.ZWO)</button>
+            <button onClick={() => dl("fit")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>Garmin (.FIT)</button>
+            <button onClick={() => dl("zwo")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>Zwift (.ZWO)</button>
           </div>
         </div>
       )}
@@ -1278,27 +1393,39 @@ function IntervalProfile({ steps }) {
   );
 }
 
-function LibraryCard() {
+function LibraryCard({ riderType }) {
   const [filter, setFilter] = useState("all");
+  const [forMe, setForMe] = useState(!!riderType);
+  const [q, setQ] = useState("");
   const [open, setOpen] = useState(null);
+  const [shown, setShown] = useState(30);
   const cats = CATEGORIES.filter((c) => LIBRARY.some((w) => w.cat === c.key));
-  const list = filter === "all" ? LIBRARY : LIBRARY.filter((w) => w.cat === filter);
+  let list = filter === "all" ? LIBRARY : LIBRARY.filter((w) => w.cat === filter);
+  if (forMe && riderType) list = list.filter((w) => (w.archetypes || []).includes(riderType));
+  if (q.trim()) { const t = q.trim().toLowerCase(); list = list.filter((w) => w.name.toLowerCase().includes(t) || w.description.toLowerCase().includes(t)); }
+  list = [...list].sort((a, b) => (a.level || 5) - (b.level || 5));
   const dl = (id, fmt = "fit") => {
     const a = document.createElement("a"); a.href = `/api/library/workout?id=${id}&fmt=${fmt}`; a.download = "";
     document.body.appendChild(a); a.click(); a.remove();
   };
+  const riderLabel = riderType && ARCHETYPES[riderType] ? ARCHETYPES[riderType].label : null;
   return (
     <Card>
-      <Eyebrow>Workout library</Eyebrow>
-      <div style={{ color: C.muted, fontSize: 12.5, marginTop: 4, marginBottom: 12 }}>Canonical power sessions, scaled to your FTP. Tap one to preview or send to Garmin or Zwift or Zwift.</div>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
+        <Eyebrow>Workout library · {LIBRARY.length} sessions</Eyebrow>
+        {riderLabel && <button onClick={() => setForMe((v) => !v)} className="ghost" style={{ ...ghostBtn, padding: "4px 11px", fontSize: 12, ...(forMe ? { borderColor: C.brand, color: C.brand, background: C.brandSoft } : {}) }}>{forMe ? "✓ " : ""}For a {riderLabel}</button>}
+      </div>
+      <div style={{ color: C.muted, fontSize: 12.5, marginTop: 4, marginBottom: 12 }}>Sorted easiest → hardest (L1–L10). Tap one to see the full brief, preview the profile, and send to Garmin or Zwift.</div>
+      <input style={{ ...input, marginBottom: 10 }} placeholder="Search workouts… (e.g. over-unders, 30/30, climb)" value={q} onChange={(e) => { setQ(e.target.value); setShown(30); }} />
       <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
         {[{ key: "all", label: "All" }, ...cats].map((c) => (
-          <button key={c.key} onClick={() => setFilter(c.key)} className="ghost"
+          <button key={c.key} onClick={() => { setFilter(c.key); setShown(30); }} className="ghost"
             style={{ ...ghostBtn, padding: "4px 10px", fontSize: 12, ...(filter === c.key ? { borderColor: C.brand, color: C.text } : {}) }}>{c.label}</button>
         ))}
       </div>
+      <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>{list.length} match{list.length === 1 ? "" : "es"}</div>
       <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-        {list.map((w) => {
+        {list.slice(0, shown).map((w) => {
           const col = CAT_COLORS[w.cat] || C.brand; const isOpen = open === w.id;
           return (
             <div key={w.id} style={{ background: C.bg, border: `1px solid ${isOpen ? col : C.border}`, borderLeft: `4px solid ${col}`, borderRadius: 10, padding: "10px 12px" }}>
@@ -1307,6 +1434,7 @@ function LibraryCard() {
                   <div style={{ fontSize: 14, fontWeight: 700 }}>{w.name}</div>
                   <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>{CATEGORIES.find((c) => c.key === w.cat)?.label} · {w.durationMin}min · {w.tss} TSS</div>
                 </div>
+                <span style={{ fontSize: 10.5, fontWeight: 800, fontFamily: C.mono, color: col, border: `1px solid ${col}`, borderRadius: 6, padding: "2px 6px", flexShrink: 0 }}>L{w.level || 5}</span>
                 <span style={{ color: C.muted, fontSize: 12 }}>{isOpen ? "▲" : "▼"}</span>
               </div>
               {isOpen && (
@@ -1314,8 +1442,8 @@ function LibraryCard() {
                   <p style={{ fontSize: 13.5, lineHeight: 1.5, margin: "10px 0 0" }}>{w.description}</p>
                   <IntervalProfile steps={w.steps} />
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-                    <button onClick={() => dl(w.id, "fit")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>⬇ Garmin (.FIT)</button>
-                    <button onClick={() => dl(w.id, "zwo")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>⬇ Zwift (.ZWO)</button>
+                    <button onClick={() => dl(w.id, "fit")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>Garmin (.FIT)</button>
+                    <button onClick={() => dl(w.id, "zwo")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>Zwift (.ZWO)</button>
                   </div>
                 </div>
               )}
@@ -1323,6 +1451,7 @@ function LibraryCard() {
           );
         })}
       </div>
+      {list.length > shown && <button onClick={() => setShown(shown + 30)} className="ghost" style={{ ...ghostBtn, width: "100%", marginTop: 10 }}>Show {Math.min(30, list.length - shown)} more of {list.length}</button>}
     </Card>
   );
 }
@@ -1396,7 +1525,7 @@ function AnalyticsCard({ sessions, profile }) {
 }
 
 const EV_PRIO = { A: "#FB7185", B: "#FBBF24", C: "#A3E635" };
-const EV_RATING = { strong: { label: "💪 Strong", color: "#34D399" }, solid: { label: "👍 Solid", color: "#A3E635" }, off: { label: "😐 Off-day", color: "#FBBF24" } };
+const EV_RATING = { strong: { label: "Strong", color: "#34D399" }, solid: { label: "Solid", color: "#A3E635" }, off: { label: "Off-day", color: "#FBBF24" } };
 
 function EventsCard({ events, setEvents, setError, scheduleRebuild }) {
   const [f, setF] = useState({ name: "", date: "", priority: "A" });
@@ -1471,7 +1600,7 @@ function AvailabilityCard({ availability, setAvailability, setError, scheduleReb
           {list.map((a) => (
             <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}>
               <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 14, fontWeight: 700 }}>{a.type === "illness" ? "🤒 Illness" : "✈ Holiday"}{a.notes ? ` · ${a.notes}` : ""}</div>
+                <div style={{ fontSize: 14, fontWeight: 700 }}>{a.type === "illness" ? "Illness" : "Holiday"}{a.notes ? ` · ${a.notes}` : ""}</div>
                 <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>{a.start} → {a.end}</div>
               </div>
               <button onClick={() => remove(a.id)} className="ghost" style={{ ...ghostBtn, padding: "4px 9px", fontSize: 12 }}>✕</button>
@@ -1522,7 +1651,7 @@ function CalendarView({ weeks, events, curWeek, selected, setSelected }) {
                     style={{ aspectRatio: "1 / 1", minHeight: 44, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 4, background: active ? C.surfaceHi : off ? "rgba(90,107,115,0.10)" : "transparent", border: `1px solid ${active ? z.color : isToday ? C.brand : C.border}`, borderRadius: 7, cursor: "pointer", color: C.text, overflow: "hidden", opacity: off ? 0.75 : 1 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2 }}>
                       <span style={{ fontSize: 10, fontWeight: 800, color: isToday ? C.brand : C.muted }}>{date.slice(8)}</span>
-                      {hasEvent && <span style={{ fontSize: 9 }}>🏁</span>}
+                      {hasEvent && <span style={{ color: C.brand }}>{ICONS.race}</span>}
                     </div>
                     {d.type !== "rest" && !off && <span style={{ height: 4, borderRadius: 2, background: missed ? "#FB7185" : z.color }} />}
                     <span style={{ fontSize: 8.5, color: missed ? "#FB7185" : C.muted, lineHeight: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: missed ? "line-through" : "none" }}>{label}</span>

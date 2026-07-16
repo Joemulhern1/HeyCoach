@@ -24,10 +24,34 @@ export async function POST(req) {
     const focus = p.focus, from = p.from;
     if (!FOCUS_LABELS[focus] || !/^\d{4}-\d{2}-\d{2}$/.test(from || "")) return Response.json({ error: "That change wasn't specific enough to apply." }, { status: 400 });
     const focuses = [...(store.focuses || []).filter((f) => f.from !== from), ...(focus === "general" ? [] : [{ from, focus }])].sort((a, b) => a.from.localeCompare(b.from));
-    const nb = buildSkeleton(store.profile, store.weights || [], eventsOf(store), store.availability || [], focuses);
+    const nb = buildSkeleton(store.profile, store.weights || [], eventsOf(store), store.availability || [], focuses, store.weekHours || {});
     applyAvailability(nb, store.availability || []);
     patch = { block: nb, focuses };
     note = `Done — from ${from}, your plan now focuses on ${FOCUS_LABELS[focus]}. Open the calendar to see the new sessions.`;
+  } else if (action === "time_off") {
+    if (!store.profile) return Response.json({ error: "Set up your goal first." }, { status: 400 });
+    const from = p.from, to = p.to || p.from;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from || "") || !/^\d{4}-\d{2}-\d{2}$/.test(to || "") || to < from) return Response.json({ error: "That change wasn't specific enough to apply." }, { status: 400 });
+    const availability = [...(store.availability || []), { id: `${Date.now()}-c`, type: "holiday", start: from, end: to, notes: "via coach" }].sort((a, b) => a.start.localeCompare(b.start));
+    const nb = buildSkeleton(store.profile, store.weights || [], eventsOf(store), availability, store.focuses || [], store.weekHours || {});
+    applyAvailability(nb, availability);
+    patch = { block: nb, availability };
+    note = from === to ? `Done — ${from} is now clear, and I've re-shaped the plan around it.` : `Done — ${from} to ${to} is now clear, and I've re-shaped the plan around it.`;
+  } else if (action === "swap_days") {
+    if (!block?.weeks?.length) return Response.json({ error: "No plan to adjust yet." }, { status: 400 });
+    const A = p.a, B = p.b;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(A || "") || !/^\d{4}-\d{2}-\d{2}$/.test(B || "")) return Response.json({ error: "That change wasn't specific enough to apply." }, { status: 400 });
+    let da = null, db = null;
+    for (const wk of block.weeks) {
+      const ws = new Date(wk.startDate + "T00:00:00Z").getTime();
+      wk.days.forEach((d, di) => { const date = d.date || iso(ws + di * 86400000); if (date === A) da = { wk, di, d }; if (date === B) db = { wk, di, d }; });
+    }
+    if (!da || !db) return Response.json({ error: "One of those days isn't in the current plan." }, { status: 400 });
+    const a0 = { ...da.d }, b0 = { ...db.d };
+    da.wk.days[da.di] = { ...b0, day: a0.day, date: a0.date };
+    db.wk.days[db.di] = { ...a0, day: b0.day, date: b0.date };
+    patch = { block };
+    note = `Done — swapped ${A} (now ${da.wk.days[da.di].title}) with ${B} (now ${db.wk.days[db.di].title}).`;
   } else if (!block?.weeks?.length) {
     return Response.json({ error: "No plan to adjust yet." }, { status: 400 });
   } else if (action === "ease_week") {

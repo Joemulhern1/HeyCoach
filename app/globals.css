@@ -1,18 +1,18 @@
 :root {
-  --bg: #F4F6FA;
+  --bg: #F6F7F9;
   --surface: #FFFFFF;
-  --surfaceHi: #EEF2F7;
-  --border: #E4E9F0;
-  --text: #18212F;
-  --muted: #64748B;
-  --faint: #94A3B8;
-  --brand: #6366F1;
-  --brandSoft: #EEF0FE;
+  --surfaceHi: #EFF1F5;
+  --border: #E4E7EC;
+  --text: #14181F;
+  --muted: #5B6472;
+  --faint: #98A1AE;
+  --brand: #4338CA;
+  --brandSoft: #EDEEFA;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
-body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-font-smoothing: antialiased; }
+body { font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; font-feature-settings: "cv02","cv03","ss01"; }
 button { font-family: inherit; }
 input, select { font-family: inherit; }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
@@ -20,7 +20,7 @@ input:focus, select:focus { border-color: var(--brand) !important; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse { 0%,100%{opacity:.5} 50%{opacity:1} }
 .pulse { animation: pulse 1.2s ease-in-out infinite; }
-.primary:hover { filter: brightness(1.06); }
+.primary:hover { filter: brightness(1.25); }
 .ghost:hover { border-color: var(--brand); color: var(--brand); }
 .daycard:hover, .daytoggle:hover { border-color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
@@ -35,8 +35,8 @@ input:focus, select:focus { border-color: var(--brand) !important; }
 .brandmark { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 17px; letter-spacing: -0.4px; padding: 6px 8px 16px; color: var(--text); }
 .navlabel { font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); font-weight: 700; padding: 14px 11px 6px; }
 .navitem {
-  display: flex; align-items: center; gap: 11px; padding: 9px 11px; border-radius: 9px;
-  color: var(--muted); font-weight: 600; font-size: 14.5px; cursor: pointer; border: none;
+  display: flex; align-items: center; gap: 11px; padding: 8px 11px; border-radius: 8px;
+  color: var(--muted); font-weight: 500; font-size: 14px; cursor: pointer; border: none;
   background: transparent; width: 100%; text-align: left; text-decoration: none;
   transition: background .12s, color .12s;
 }
