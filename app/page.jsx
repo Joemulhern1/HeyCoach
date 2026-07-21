@@ -433,14 +433,23 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
   };
 
   const uploadShot = async (e) => {
-    const file = (e.target.files || [])[0]; if (!file) return;
-    setShotting(true); setError("");
+    const files = [...(e.target.files || [])]; if (!files.length) return;
+    setShotting(true); setError(""); setStravaNote("");
     try {
-      const fd = new FormData(); fd.append("image", file);
+      const fd = new FormData();
+      files.slice(0, 6).forEach((f) => fd.append("image", f));
       const r = await fetch("/api/sessions/screenshot", { method: "POST", body: fd });
       const d = await jget(r); if (!r.ok) throw new Error(d.error || "Couldn't read screenshot.");
       setSessions(d.sessions);
-    } catch (err) { setError(err.message); } finally { setShotting(false); if (shotRef.current) shotRef.current.value = ""; }
+      const s = d.session;
+      const bits = [];
+      if (s?.durationSec) bits.push(`${Math.round(s.durationSec / 60)}min`);
+      if (s?.avgPower) bits.push(`${s.avgPower}W avg`);
+      if (s?.best20) bits.push(`best 20-min ${s.best20}W`);
+      let msg = `Read ${files.length > 1 ? files.length + " screenshots" : "your screenshot"} → "${s?.name || "ride"}"${bits.length ? " — " + bits.join(", ") : ""}.`;
+      if (d.ftpRec?.suggestion) msg += ` Your power suggests FTP ${d.ftpRec.from} → ${d.ftpRec.suggestion}W — check the Today screen to apply.`;
+      setStravaNote(msg);
+    } catch (err) { setError(err.message); } finally { setShotting(false); if (shotRef.current) shotRef.current.value = ""; if (todayShotRef.current) todayShotRef.current.value = ""; }
   };
 
   const addManual = async (body) => {
@@ -554,13 +563,13 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
           <div style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>The coach reads these and adapts your next week.</div>
         </div>
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-          <button onClick={() => shotRef.current?.click()} className="ghost" style={ghostBtn} disabled={shotting}>{shotting ? "Reading…" : "Log screenshot"}</button>
+          <button onClick={() => shotRef.current?.click()} className="ghost" style={ghostBtn} disabled={shotting}>{shotting ? "Reading…" : "Log screenshots"}</button>
           <button onClick={() => fileRef.current?.click()} className="ghost" style={ghostBtn} disabled={uploading}>{uploading ? "Reading…" : "Log ride file"}</button>
           <button onClick={() => setShowManual((v) => !v)} className="ghost" style={ghostBtn}>Log manually</button>
           {strava.configured && (strava.connected
             ? <button onClick={syncStrava} className="ghost" style={ghostBtn} disabled={syncing}>{syncing ? "Syncing…" : "Sync Strava"}</button>
             : <a href="/api/strava/connect" className="ghost" style={{ ...ghostBtn, textDecoration: "none" }}>Connect Strava</a>)}
-          <input ref={shotRef} type="file" accept="image/*" onChange={uploadShot} style={{ display: "none" }} />
+          <input ref={shotRef} type="file" accept="image/*" multiple onChange={uploadShot} style={{ display: "none" }} />
           <input ref={fileRef} type="file" accept=".fit,.tcx,.gpx" multiple onChange={uploadFiles} style={{ display: "none" }} />
         </div>
       </div>
@@ -629,10 +638,10 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
                 <div style={{ marginTop: 14, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
                   <div style={{ fontSize: 12.5, color: C.muted, marginBottom: 8 }}>Done your ride? Log it and I'll adapt:</div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                    <button onClick={() => todayShotRef.current?.click()} className="ghost" style={ghostBtn} disabled={shotting}>{shotting ? "Reading…" : "Log screenshot"}</button>
+                    <button onClick={() => todayShotRef.current?.click()} className="ghost" style={ghostBtn} disabled={shotting}>{shotting ? "Reading…" : "Log screenshots"}</button>
                     <button onClick={() => todayFileRef.current?.click()} className="ghost" style={ghostBtn} disabled={uploading}>{uploading ? "Reading…" : "Log ride file"}</button>
                   </div>
-                  <input ref={todayShotRef} type="file" accept="image/*" onChange={uploadShot} style={{ display: "none" }} />
+                  <input ref={todayShotRef} type="file" accept="image/*" multiple onChange={uploadShot} style={{ display: "none" }} />
                   <input ref={todayFileRef} type="file" accept=".fit,.tcx,.gpx" multiple onChange={uploadFiles} style={{ display: "none" }} />
                   {stravaPasteBox}
                 </div>
