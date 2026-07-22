@@ -1146,6 +1146,7 @@ function MonthGrid({ dateMap, monthCursor, setMonthCursor, selected, setSelected
 
 function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRegenerate, busy, downloadWorkout, prepareWeek, preparing, events, dayAction, onSetHours }) {
   const [moveOpen, setMoveOpen] = useState(false);
+  const [replaceOpen, setReplaceOpen] = useState(false);
   const [view, setView] = useState("week");
   const [focusWeek, setFocusWeek] = useState(() => curWeek);
   const [monthCursor, setMonthCursor] = useState(() => { const d = new Date(); return { y: d.getFullYear(), m: d.getMonth() }; });
@@ -1204,19 +1205,38 @@ function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRege
             : <button onClick={() => prepareWeek(selected.week)} className="ghost" style={{ ...ghostBtn, marginTop: 14 }} disabled={preparing === selected.week}>{preparing === selected.week ? "Preparing week…" : "Prepare this week's intervals →"}</button>
           )}
           {sel.status !== "off" && (
-            <div style={{ display: "flex", gap: 8, marginTop: 12, flexWrap: "wrap" }}>
-              <button onClick={() => setMoveOpen((v) => !v)} className="ghost" style={{ ...ghostBtn, fontSize: 12.5 }}>Move</button>
-              {sel.status === "missed"
-                ? <button onClick={() => dayAction({ weekIndex: selected.week, dayIndex: selected.day, action: "clear" })} className="ghost" style={{ ...ghostBtn, fontSize: 12.5 }}>Undo missed</button>
-                : <button onClick={() => dayAction({ weekIndex: selected.week, dayIndex: selected.day, action: "missed" })} className="ghost" style={{ ...ghostBtn, fontSize: 12.5, color: "#FB7185", borderColor: "#FB7185" }}>Mark missed</button>}
+            <div style={{ marginTop: 14, borderTop: `1px solid ${C.border}`, paddingTop: 12 }}>
+              <div style={{ fontSize: 11, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5, marginBottom: 8 }}>Adjust this session</div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button onClick={() => { setMoveOpen((v) => !v); setReplaceOpen(false); }} className="ghost" style={{ ...ghostBtn, fontSize: 13 }}>Move day</button>
+                {(sel.type === "ride" || sel.type === "rest") && <button onClick={() => { setReplaceOpen((v) => !v); setMoveOpen(false); }} className="ghost" style={{ ...ghostBtn, fontSize: 13 }}>{sel.type === "rest" ? "Add a ride…" : "Replace…"}</button>}
+                {sel.type === "ride" && <>
+                  <button onClick={() => dayAction({ weekIndex: selected.week, dayIndex: selected.day, action: "replace", replaceType: "easier" })} className="ghost" style={{ ...ghostBtn, fontSize: 13 }}>Make easier</button>
+                  <button onClick={() => dayAction({ weekIndex: selected.week, dayIndex: selected.day, action: "replace", replaceType: "harder" })} className="ghost" style={{ ...ghostBtn, fontSize: 13 }}>Make harder</button>
+                </>}
+                {sel.type === "ride" && <button onClick={() => dayAction({ weekIndex: selected.week, dayIndex: selected.day, action: "replace", replaceType: "rest" })} className="ghost" style={{ ...ghostBtn, fontSize: 13 }}>Make rest day</button>}
+                {sel.status === "missed"
+                  ? <button onClick={() => dayAction({ weekIndex: selected.week, dayIndex: selected.day, action: "clear" })} className="ghost" style={{ ...ghostBtn, fontSize: 13 }}>Undo missed</button>
+                  : sel.type === "ride" && <button onClick={() => dayAction({ weekIndex: selected.week, dayIndex: selected.day, action: "missed" })} className="ghost" style={{ ...ghostBtn, fontSize: 13, color: "#F43F5E", borderColor: "#FBCFE8" }}>Mark missed</button>}
+              </div>
+            </div>
+          )}
+          {replaceOpen && (
+            <div style={{ marginTop: 10, background: C.surfaceHi, borderRadius: 10, padding: 12 }}>
+              <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Replace with a different session:</div>
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {[["recovery", "Recovery"], ["endurance", "Endurance"], ["tempo", "Tempo"], ["sweetspot", "Sweet Spot"], ["threshold", "Threshold"], ["vo2", "VO2"], ["anaerobic", "Anaerobic"], ["sprint", "Sprint"]].map(([k, l]) => (
+                  <button key={k} onClick={() => { dayAction({ weekIndex: selected.week, dayIndex: selected.day, action: "replace", replaceType: k }); setReplaceOpen(false); }} className="ghost" style={{ ...ghostBtn, padding: "6px 12px", fontSize: 12.5 }}>{l}</button>
+                ))}
+              </div>
             </div>
           )}
           {moveOpen && (
-            <div style={{ marginTop: 10 }}>
-              <div style={{ fontSize: 11.5, color: C.muted, marginBottom: 6 }}>Swap with which day?</div>
+            <div style={{ marginTop: 10, background: C.surfaceHi, borderRadius: 10, padding: 12 }}>
+              <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Swap with which day?</div>
               <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                 {selWeek.days.map((d, ti) => ti !== selected.day && (
-                  <button key={ti} onClick={() => { dayAction({ weekIndex: selected.week, dayIndex: selected.day, targetDayIndex: ti, action: "swap" }); setMoveOpen(false); }} className="ghost" style={{ ...ghostBtn, padding: "5px 10px", fontSize: 12 }}>{d.day}</button>
+                  <button key={ti} onClick={() => { dayAction({ weekIndex: selected.week, dayIndex: selected.day, targetDayIndex: ti, action: "swap" }); setMoveOpen(false); }} className="ghost" style={{ ...ghostBtn, padding: "6px 11px", fontSize: 12.5 }}>{d.day} · {d.type === "rest" ? "rest" : d.title}</button>
                 ))}
               </div>
             </div>
