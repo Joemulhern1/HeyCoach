@@ -2,6 +2,7 @@ import { readStore, patchStore } from "../../../../lib/store.js";
 import { currentWeekIndex, applyAvailability } from "../../../../lib/coach.js";
 import { buildSkeleton, FOCUS_LABELS } from "../../../../lib/periodize.js";
 import { planWorkout } from "../../../../lib/generate.js";
+import { healDates } from "../../../../lib/periodize.js";
 
 const HARD = ["vo2", "threshold", "anaerobic", "sprint"];
 const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
@@ -123,6 +124,7 @@ export async function POST(req) {
     return Response.json({ error: "Unknown action." }, { status: 400 });
   }
 
+  if (patch.block) healDates(patch.block);
   const chat = [...(store.coachChat || []), { role: "assistant", content: note, ts: Date.now() }].slice(-60);
   const saved = await patchStore({ ...patch, coachChat: chat });
   return Response.json({ block: saved.block, chat: saved.coachChat });

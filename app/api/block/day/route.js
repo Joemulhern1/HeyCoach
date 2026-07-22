@@ -1,6 +1,7 @@
 import { readStore, patchStore } from "../../../../lib/store.js";
 import { nudgeProgression } from "../../../../lib/progression.js";
 import { planWorkout } from "../../../../lib/generate.js";
+import { healDates } from "../../../../lib/periodize.js";
 
 const TYPE_KEY = { endurance: "end", recovery: "rec", tempo: "tempo", sweetspot: "ss", threshold: "thr", vo2: "vo2", anaerobic: "anaerobic", sprint: "sprint", long: "long" };
 const LADDER = ["recovery", "endurance", "tempo", "sweetspot", "threshold", "vo2", "anaerobic"]; // easy → hard
@@ -24,8 +25,9 @@ export async function PATCH(req) {
     const b = wk.days[targetDayIndex];
     if (!b) return Response.json({ error: "No target day." }, { status: 400 });
     const A = { ...wk.days[dayIndex] }, B = { ...b };
-    wk.days[dayIndex] = { ...B, day: A.day };
-    wk.days[targetDayIndex] = { ...A, day: B.day };
+    // Move the workout content only — each slot keeps its own weekday + calendar date.
+    wk.days[dayIndex] = { ...B, day: A.day, date: A.date };
+    wk.days[targetDayIndex] = { ...A, day: B.day, date: B.date };
   } else if (action === "replace") {
     const d = wk.days[dayIndex];
     if (replaceType === "rest") {
@@ -52,6 +54,7 @@ export async function PATCH(req) {
     return Response.json({ error: "Unknown action." }, { status: 400 });
   }
 
+  healDates(block);
   const next = await patchStore({ block, progression });
   return Response.json({ block: next.block, progression: next.progression });
 }
