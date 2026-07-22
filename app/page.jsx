@@ -539,6 +539,19 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
   const todayPmc = computePMC(sessions, profile);
   const todayTsb = todayPmc && !todayPmc.empty ? todayPmc.current.tsb : null;
   const advice = dailyAdvice(todayType, todayTsb, today ? today.title : null);
+  const nextRide = block ? block.weeks.flatMap((w) => w.days).filter((d) => d.date > todayIso && d.type === "ride" && !d.status).sort((a, b) => a.date.localeCompare(b.date))[0] : null;
+  const prepNote = (t) => t === "hard" ? "It's a big one — a carb-rich dinner tonight and a proper breakfast will set you up." : t === "moderate" ? "Fuel normally today and you'll roll into it fresh." : "An easy one next — no special prep, just keep it relaxed and hydrate.";
+  const doneAdvice = (() => {
+    if (!todaysLog) return null;
+    const recap = todaysLog.scoreVerdict || "Nice work getting today's ride done.";
+    if (!nextRide) return `${recap} Nothing scheduled next — rest up and enjoy it.`;
+    const nType = classifyDay(nextRide);
+    return `${recap} Next up ${nextRide.day}: ${nextRide.title}. ${prepNote(nType)}`;
+  })();
+  const fuelDay = (todaysLog && nextRide) ? nextRide : today;
+  const fuelType = fuelDay ? classifyDay(fuelDay) : todayType;
+  const fuelT = nutTargets[fuelType] || nutTargets.rest;
+  const fuelLabel = (todaysLog && nextRide) ? `${nextRide.day}'s fuel` : "Today's fuel";
   const loadRec = block ? assessLoad(todayPmc) : null;
   const ftpRec = estimateFtp(sessions, profile);
   const lastSession = [...(sessions || [])].sort((a, b) => new Date(b.date || b.addedAt) - new Date(a.date || a.addedAt))[0];
@@ -685,11 +698,11 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
         ) : buildPrompt}
 
         <Card style={{ borderLeft: `4px solid ${C.brand}`, background: C.brandSoft }}>
-          <Eyebrow>Coach's advice</Eyebrow>
-          <p style={{ lineHeight: 1.6, margin: "8px 0 0", fontSize: 15 }}>{advice}</p>
+          <Eyebrow>{todaysLog ? "Nice work — what's next" : "Coach's advice"}</Eyebrow>
+          <p style={{ lineHeight: 1.6, margin: "8px 0 0", fontSize: 15 }}>{todaysLog ? doneAdvice : advice}</p>
         </Card>
 
-        {block && today && (
+        {block && today && !todaysLog && (
           <Card>
             <Eyebrow>How do you feel today?</Eyebrow>
             <div style={{ display: "flex", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
@@ -778,16 +791,16 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
 
         <Card>
           <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-            <Eyebrow>Today's fuel · {DAYTYPE_LABEL[todayType].toLowerCase()}</Eyebrow>
+            <Eyebrow>{fuelLabel} · {DAYTYPE_LABEL[fuelType].toLowerCase()}</Eyebrow>
             <button onClick={() => setNav("nutrition")} className="ghost" style={{ ...ghostBtn, padding: "5px 11px", fontSize: 12.5 }}>Meal plan →</button>
           </div>
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-            <Stat label="Calories" value={tnut.kcal} unit="kcal" />
-            <Stat label="Carbs" value={tnut.carbsG} unit="g" color={ZONES.endurance.color} />
-            <Stat label="Protein" value={tnut.proteinG} unit="g" color={C.brand} />
-            <Stat label="Fat" value={tnut.fatG} unit="g" color={ZONES.threshold.color} />
+            <Stat label="Calories" value={fuelT.kcal} unit="kcal" />
+            <Stat label="Carbs" value={fuelT.carbsG} unit="g" color={ZONES.endurance.color} />
+            <Stat label="Protein" value={fuelT.proteinG} unit="g" color={C.brand} />
+            <Stat label="Fat" value={fuelT.fatG} unit="g" color={ZONES.threshold.color} />
           </div>
-          <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.5, margin: "12px 0 0" }}>On-bike fuelling: <b style={{ color: C.text }}>{fuelling(todayType).carbsPerHour}</b>. {fuelling(todayType).post}</p>
+          <p style={{ color: C.muted, fontSize: 13, lineHeight: 1.5, margin: "12px 0 0" }}>On-bike fuelling: <b style={{ color: C.text }}>{fuelling(fuelType).carbsPerHour}</b>. {fuelling(fuelType).post}</p>
         </Card>
 
         <AnalyticsCard sessions={sessions} profile={profile} />
@@ -1100,9 +1113,9 @@ const Stat = ({ label, value, unit, color }) => (
   </div>
 );
 const Metric = ({ v, l }) => (
-  <div style={{ textAlign: "right" }}>
-    <div style={{ fontFamily: C.mono, fontSize: 14, fontWeight: 700 }}>{v}</div>
-    <div style={{ fontSize: 10, color: C.muted, textTransform: "uppercase" }}>{l}</div>
+  <div style={{ background: C.surfaceHi, borderRadius: 14, padding: "8px 12px", minWidth: 66 }}>
+    <div style={{ fontFamily: C.mono, fontSize: 15, fontWeight: 800, lineHeight: 1.1, whiteSpace: "nowrap" }}>{v}</div>
+    <div style={{ fontSize: 9.5, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 3, whiteSpace: "nowrap" }}>{l}</div>
   </div>
 );
 
