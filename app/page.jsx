@@ -542,6 +542,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
   const loadRec = block ? assessLoad(todayPmc) : null;
   const ftpRec = estimateFtp(sessions, profile);
   const lastSession = [...(sessions || [])].sort((a, b) => new Date(b.date || b.addedAt) - new Date(a.date || a.addedAt))[0];
+  const todaysLog = (sessions || []).find((s) => (s.date || s.addedAt || "").slice(0, 10) === todayIso);
   const tssOf = (s) => (s?.avgPower && profile?.currentFTP && s?.durationSec) ? Math.round((s.durationSec * s.avgPower * (s.avgPower / profile.currentFTP)) / (profile.currentFTP * 3600) * 100) : null;
 
   const Head = ({ title, sub }) => (
@@ -614,9 +615,38 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
         <GlanceStrip profile={profile} weights={weights} events={events} pmc={todayPmc} />
         <Card><GoalHeader profile={profile} weights={weights} onEdit={onEdit} events={events} /></Card>
         {block ? (
-          <Card style={tz ? { borderLeft: `4px solid ${tz.color}` } : {}}>
-            <Eyebrow>Today · {todayIso}</Eyebrow>
-            {today ? (
+          <Card style={tz ? { borderLeft: `4px solid ${todaysLog ? "#059669" : tz.color}` } : {}}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+              <Eyebrow>Today · {todayIso}</Eyebrow>
+              {todaysLog && <span style={{ background: "#059669", color: "#fff", fontSize: 11.5, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>✓ Done</span>}
+            </div>
+            {todaysLog ? (
+              <div style={{ marginTop: 10 }}>
+                <div style={{ fontSize: 18, fontWeight: 800 }}>{todaysLog.name}</div>
+                <div style={{ fontSize: 12, color: C.muted, fontFamily: C.mono, marginTop: 2 }}>{today ? `Planned: ${today.type === "rest" ? "Rest" : today.title}` : "Logged today"} · {todaysLog.source || "logged"}</div>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
+                  {tssOf(todaysLog) != null && <Metric v={tssOf(todaysLog)} l="TSS" />}
+                  {todaysLog.durationSec && <Metric v={fmtMins(todaysLog.durationSec)} l="time" />}
+                  {todaysLog.avgPower != null && <Metric v={`${todaysLog.avgPower}W`} l="avg power" />}
+                  {todaysLog.avgHr != null && <Metric v={`${todaysLog.avgHr}`} l="avg HR" />}
+                  {todaysLog.best20 != null && <Metric v={`${todaysLog.best20}W`} l="best 20m" />}
+                  {todaysLog.distanceKm != null && <Metric v={`${todaysLog.distanceKm}`} l="km" />}
+                </div>
+                {todaysLog.score != null && (
+                  <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, background: C.surfaceHi, borderRadius: 18, padding: "12px 14px" }}>
+                    <div style={{ display: "flex", alignItems: "baseline", gap: 1, flexShrink: 0 }}>
+                      <span style={{ fontSize: 30, fontWeight: 800, fontFamily: C.mono, color: todaysLog.score >= 7 ? "#059669" : todaysLog.score >= 5 ? C.brand : "#D97706", lineHeight: 1 }}>{todaysLog.score}</span>
+                      <span style={{ fontSize: 14, color: C.faint, fontWeight: 700 }}>/10</span>
+                    </div>
+                    <div style={{ minWidth: 0 }}>
+                      <div style={{ fontSize: 13.5, lineHeight: 1.45 }}>{todaysLog.scoreVerdict}</div>
+                      {todaysLog.scoreDetail && <div style={{ fontSize: 11.5, color: C.muted, fontFamily: C.mono, marginTop: 2 }}>{todaysLog.scoreDetail}</div>}
+                    </div>
+                  </div>
+                )}
+                <button onClick={() => setNav("activity")} className="ghost" style={{ ...ghostBtn, marginTop: 14 }}>View in activity →</button>
+              </div>
+            ) : today ? (
               <div style={{ marginTop: 8 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
                   <div style={{ fontSize: 19, fontWeight: 800 }}>{today.title}</div>
@@ -706,7 +736,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
           </Card>
         )}
 
-        {lastSession && (
+        {lastSession && lastSession.id !== todaysLog?.id && (
           <Card>
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
               <div style={{ minWidth: 0 }}>
