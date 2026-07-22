@@ -539,6 +539,8 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
   const todayPmc = computePMC(sessions, profile);
   const todayTsb = todayPmc && !todayPmc.empty ? todayPmc.current.tsb : null;
   const advice = dailyAdvice(todayType, todayTsb, today ? today.title : null);
+  const lastSession = [...(sessions || [])].sort((a, b) => new Date(b.date || b.addedAt) - new Date(a.date || a.addedAt))[0];
+  const todaysLog = (sessions || []).find((s) => (s.date || s.addedAt || "").slice(0, 10) === todayIso);
   const nextRide = block ? block.weeks.flatMap((w) => w.days).filter((d) => d.date > todayIso && d.type === "ride" && !d.status).sort((a, b) => a.date.localeCompare(b.date))[0] : null;
   const prepNote = (t) => t === "hard" ? "It's a big one — a carb-rich dinner tonight and a proper breakfast will set you up." : t === "moderate" ? "Fuel normally today and you'll roll into it fresh." : "An easy one next — no special prep, just keep it relaxed and hydrate.";
   const doneAdvice = (() => {
@@ -554,8 +556,6 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
   const fuelLabel = (todaysLog && nextRide) ? `${nextRide.day}'s fuel` : "Today's fuel";
   const loadRec = block ? assessLoad(todayPmc) : null;
   const ftpRec = estimateFtp(sessions, profile);
-  const lastSession = [...(sessions || [])].sort((a, b) => new Date(b.date || b.addedAt) - new Date(a.date || a.addedAt))[0];
-  const todaysLog = (sessions || []).find((s) => (s.date || s.addedAt || "").slice(0, 10) === todayIso);
   const tssOf = (s) => (s?.avgPower && profile?.currentFTP && s?.durationSec) ? Math.round((s.durationSec * s.avgPower * (s.avgPower / profile.currentFTP)) / (profile.currentFTP * 3600) * 100) : null;
 
   const Head = ({ title, sub }) => (
