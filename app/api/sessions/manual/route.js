@@ -1,4 +1,5 @@
 import { readStore, patchStore } from "../../../../lib/store.js";
+import { scoreForSession } from "../../../../lib/score.js";
 
 export async function POST(req) {
   const b = await req.json();
@@ -14,5 +15,7 @@ export async function POST(req) {
     avgHr: b.avgHr != null && b.avgHr !== "" ? Number(b.avgHr) : null,
   };
   const store = await readStore();
-  return Response.json(await patchStore({ sessions: [session, ...(store.sessions || [])] }));
+  const score = scoreForSession(session, store);
+  const saved = await patchStore({ sessions: [session, ...(store.sessions || [])] });
+  return Response.json({ ...saved, score });
 }

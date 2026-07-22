@@ -14,7 +14,11 @@ export async function POST(req) {
   const history = [...(store.coachChat || []), { role: "user", content: message.trim(), ts: Date.now() }];
   const block = store.block;
   const wk = block?.weeks?.[currentWeekIndex(block)];
-  const ctx = wk ? { weekFocus: `${wk.phase} — ${wk.focus}` } : null;
+  const today = new Date().toISOString().slice(0, 10);
+  let todayDay = null;
+  for (const w of block?.weeks || []) for (const d of w.days) if (d.date === today) todayDay = d;
+  const todaySession = todayDay ? (todayDay.type === "rest" ? "Rest day" : todayDay.status === "off" ? "Off (unavailable)" : `${todayDay.title} (${todayDay.duration})`) : "nothing scheduled";
+  const ctx = { weekFocus: wk ? `${wk.phase} — ${wk.focus}` : null, today, todaySession };
   try {
     const raw = await coachReply(history, store.profile, ctx, store.sessions || [], store.weights || [], store.progression);
     // Pull a structured [[PROPOSAL]]{...}[[/PROPOSAL]] change, else fall back to simple [[tag]]s.

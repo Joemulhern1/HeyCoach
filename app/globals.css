@@ -35,7 +35,7 @@ input:focus, select:focus { border-color: var(--brand) !important; }
 .brandmark { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 17px; letter-spacing: -0.4px; padding: 6px 8px 16px; color: var(--text); }
 .navlabel { font-size: 10px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--faint); font-weight: 700; padding: 14px 11px 6px; }
 .navitem {
-  display: flex; align-items: center; gap: 11px; padding: 8px 11px; border-radius: 8px;
+  display: flex; align-items: center; gap: 11px; padding: 8px 11px; border-radius: 14px;
   color: var(--muted); font-weight: 500; font-size: 14px; cursor: pointer; border: none;
   background: transparent; width: 100%; text-align: left; text-decoration: none;
   transition: background .12s, color .12s;
@@ -56,3 +56,13 @@ input:focus, select:focus { border-color: var(--brand) !important; }
   .content-inner { padding: 18px 16px 96px; }
   .scrim.show { display: block; position: fixed; inset: 0; background: rgba(15,23,42,.34); z-index: 50; }
 }
+
+/* softer, more interactive surfaces */
+.primary:active, .ghost:active { transform: scale(0.97); }
+.ghost:hover { background: var(--surfaceHi); border-color: var(--faint); }
+.navitem { transition: background .15s ease, color .15s ease; }
+.navitem:hover { background: var(--surfaceHi); }
+input, textarea { transition: border-color .15s ease, box-shadow .15s ease; }
+input:focus, textarea:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--brandSoft); }
+.tap { transition: transform .12s ease; cursor: pointer; }
+.tap:active { transform: scale(0.98); }

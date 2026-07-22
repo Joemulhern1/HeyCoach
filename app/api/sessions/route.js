@@ -1,5 +1,6 @@
 import { readStore, patchStore } from "../../../lib/store.js";
 import { parseRideFile } from "../../../lib/parse.js";
+import { scoreForSession } from "../../../lib/score.js";
 
 export const maxDuration = 60;
 
@@ -15,14 +16,16 @@ export async function POST(req) {
   for (const file of files) {
     try {
       const buf = Buffer.from(await file.arrayBuffer());
-      added.push(await parseRideFile(file.name, buf));
+      const sess = await parseRideFile(file.name, buf);
+      scoreForSession(sess, store);
+      added.push(sess);
     } catch (e) {
       errors.push(`${file.name}: ${e.message}`);
     }
   }
   const sessions = [...added, ...(store.sessions || [])];
   const next = await patchStore({ sessions });
-  return Response.json({ ...next, added: added.length, errors });
+  return Response.json({ ...next, added: added.length, errors, score: added[0] ? { score: added[0].score, verdict: added[0].scoreVerdict, detail: added[0].scoreDetail } : null });
 }
 
 export async function DELETE(req) {

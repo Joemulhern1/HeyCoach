@@ -35,9 +35,9 @@ const C = {
   text: "var(--text)", muted: "var(--muted)", faint: "var(--faint)", brand: "var(--brand)",
   brandSoft: "var(--brandSoft)", mono: "var(--mono)",
 };
-const input = { background: C.bg, border: `1px solid ${C.border}`, color: C.text, borderRadius: 10, padding: "10px 12px", fontSize: 15, outline: "none", width: "100%" };
-const primaryBtn = { background: "#111827", color: "#fff", border: "none", borderRadius: 10, padding: "13px 0", fontSize: 15, fontWeight: 600, cursor: "pointer", width: "100%", letterSpacing: 0.1 };
-const ghostBtn = { background: "transparent", border: `1px solid ${C.border}`, color: C.muted, borderRadius: 10, padding: "8px 14px", fontSize: 13, cursor: "pointer", fontWeight: 600 };
+const input = { background: C.bg, border: `1px solid ${C.border}`, color: C.text, borderRadius: 14, padding: "11px 14px", fontSize: 15, outline: "none", width: "100%" };
+const primaryBtn = { background: "#111827", color: "#fff", border: "none", borderRadius: 999, padding: "14px 0", fontSize: 15, fontWeight: 600, cursor: "pointer", width: "100%", letterSpacing: 0.1, transition: "transform .12s ease, filter .12s ease" };
+const ghostBtn = { background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 999, padding: "8px 15px", fontSize: 13, cursor: "pointer", fontWeight: 600, transition: "background .12s ease, border-color .12s ease, transform .12s ease" };
 
 // Parse a response safely — if the server returns non-JSON (timeout/crash page),
 // surface a readable message instead of a cryptic "Unexpected token" error.
@@ -48,7 +48,7 @@ async function jget(r) {
 }
 
 const Eyebrow = ({ children }) => <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: C.muted, fontWeight: 700 }}>{children}</div>;
-const Card = ({ children, style }) => <div style={{ background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, ...style }}>{children}</div>;
+const Card = ({ children, style, onClick }) => <div onClick={onClick} style={{ background: C.surface, borderRadius: 22, padding: 20, boxShadow: "0 1px 2px rgba(17,24,39,.04), 0 6px 20px rgba(17,24,39,.05)", ...style }}>{children}</div>;
 const Field = ({ label, children }) => (
   <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
     <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>{label}</span>{children}
@@ -153,7 +153,7 @@ export default function HeyCoach() {
 }
 
 const Logo = () => <span style={{ width: 22, height: 22, borderRadius: 7, background: "#111827", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 900, flexShrink: 0 }}>H</span>;
-const ErrBanner = ({ children }) => <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", borderRadius: 10, padding: "10px 14px", marginBottom: 16, fontSize: 14 }}>{children}</div>;
+const ErrBanner = ({ children }) => <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", borderRadius: 16, padding: "10px 14px", marginBottom: 16, fontSize: 14 }}>{children}</div>;
 
 function CenterWrap({ children }) {
   return (
@@ -301,7 +301,7 @@ function Onboarding({ profile, setProfile, onBuild, busy }) {
         <Field label="Current weight (kg)"><input type="number" style={{ ...input, fontFamily: C.mono }} value={profile.currentWeightKg} onChange={(e) => upd("currentWeightKg", +e.target.value)} /></Field>
         <Field label="Target weight (kg)"><input type="number" style={{ ...input, fontFamily: C.mono }} value={profile.targetWeightKg} onChange={(e) => upd("targetWeightKg", +e.target.value)} /></Field>
       </div>
-      <div style={{ marginTop: 14, background: C.brandSoft, border: `1px solid ${C.brand}`, borderRadius: 10, padding: "10px 14px", fontSize: 13, color: C.text }}>
+      <div style={{ marginTop: 14, background: C.brandSoft, border: `1px solid ${C.brand}`, borderRadius: 16, padding: "10px 14px", fontSize: 13, color: C.text }}>
         Target power-to-weight: <span style={{ fontFamily: C.mono, color: C.brand, fontWeight: 700 }}>{projWkg} W/kg</span> at {profile.targetFTP}W / {profile.targetWeightKg}kg
       </div>
       <div style={{ marginTop: 18 }}>
@@ -314,7 +314,7 @@ function Onboarding({ profile, setProfile, onBuild, busy }) {
             const setHrs = (v) => setProfile((p) => ({ ...p, dayHours: { ...(p.dayHours || {}), [d]: Number(v) } }));
             const fmtH = (h) => h === 0 ? "Auto" : (h >= 1 ? `${Math.floor(h)}h${h % 1 ? String(Math.round((h % 1) * 60)).padStart(2, "0") : ""}` : `${Math.round(h * 60)}min`);
             return (
-              <div key={d} style={{ display: "flex", alignItems: "center", gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${typeColor(type)}`, borderRadius: 8, padding: "8px 10px" }}>
+              <div key={d} style={{ display: "flex", alignItems: "center", gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${typeColor(type)}`, borderRadius: 14, padding: "8px 10px" }}>
                 <div style={{ width: 34, fontSize: 12.5, fontWeight: 700 }}>{d}</div>
                 <div style={{ display: "flex", gap: 4 }}>
                   {["ride", "gym", "rest"].map((t) => (
@@ -393,6 +393,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
   const [stravaUrl, setStravaUrl] = useState("");
   const [stravaBusy, setStravaBusy] = useState(false);
   const [stravaNote, setStravaNote] = useState("");
+  const [lastScore, setLastScore] = useState(null);
   const analyzeStrava = async () => {
     if (!stravaUrl.trim() || stravaBusy) return;
     setStravaBusy(true); setStravaNote(""); setError("");
@@ -408,7 +409,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
         <input style={{ ...input, flex: 1, fontSize: 13.5 }} placeholder="Paste a Strava activity link to analyse…" value={stravaUrl} onChange={(e) => setStravaUrl(e.target.value)} onKeyDown={(e) => e.key === "Enter" && analyzeStrava()} />
         <button onClick={analyzeStrava} disabled={stravaBusy} className="primary" style={{ ...primaryBtn, width: "auto", padding: "0 18px", fontSize: 13.5, opacity: stravaBusy ? 0.6 : 1 }}>{stravaBusy ? "Analysing…" : "Analyse"}</button>
       </div>
-      {stravaNote && <div style={{ fontSize: 13, color: C.text, background: C.surfaceHi, borderRadius: 8, padding: "9px 12px", marginTop: 8, lineHeight: 1.5 }}>{stravaNote}</div>}
+      {stravaNote && <div style={{ fontSize: 13, color: C.text, background: C.surfaceHi, borderRadius: 14, padding: "9px 12px", marginTop: 8, lineHeight: 1.5 }}>{stravaNote}</div>}
       {!strava.connected && <div style={{ fontSize: 11.5, color: C.faint, marginTop: 6 }}>Requires your Strava connection{strava.configured ? " — connect it below" : " (Strava keys not configured on this deployment)"}.</div>}
     </div>
   );
@@ -428,7 +429,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
       const fd = new FormData(); files.forEach((f) => fd.append("files", f));
       const r = await fetch("/api/sessions", { method: "POST", body: fd });
       const d = await jget(r); if (!r.ok) throw new Error(d.error || "Upload failed.");
-      setSessions(d.sessions); if (d.errors?.length) setError(d.errors.join(" · "));
+      setSessions(d.sessions); if (d.score) { setLastScore(d.score); setStravaNote(`${d.score.score}/10 — ${d.score.verdict}${d.score.detail ? ` (${d.score.detail})` : ""}`); } if (d.errors?.length) setError(d.errors.join(" · "));
     } catch (err) { setError(err.message); } finally { setUploading(false); if (fileRef.current) fileRef.current.value = ""; }
   };
 
@@ -447,14 +448,16 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
       if (s?.avgPower) bits.push(`${s.avgPower}W avg`);
       if (s?.best20) bits.push(`best 20-min ${s.best20}W`);
       let msg = `Read ${files.length > 1 ? files.length + " screenshots" : "your screenshot"} → "${s?.name || "ride"}"${bits.length ? " — " + bits.join(", ") : ""}.`;
+      if (d.score) msg = `${d.score.score}/10 — ${d.score.verdict}${d.score.detail ? ` (${d.score.detail})` : ""}`;
       if (d.ftpRec?.suggestion) msg += ` Your power suggests FTP ${d.ftpRec.from} → ${d.ftpRec.suggestion}W — check the Today screen to apply.`;
       setStravaNote(msg);
+      if (d.score) setLastScore(d.score);
     } catch (err) { setError(err.message); } finally { setShotting(false); if (shotRef.current) shotRef.current.value = ""; if (todayShotRef.current) todayShotRef.current.value = ""; }
   };
 
   const addManual = async (body) => {
     const r = await fetch("/api/sessions/manual", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-    const d = await jget(r); if (r.ok) { setSessions(d.sessions); setShowManual(false); }
+    const d = await jget(r); if (r.ok) { setSessions(d.sessions); setShowManual(false); if (d.score) { setLastScore(d.score); setStravaNote(`${d.score.score}/10 — ${d.score.verdict}${d.score.detail ? ` (${d.score.detail})` : ""}`); } }
   };
 
   const syncStrava = async () => {
@@ -584,7 +587,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
       {sessions.length > 0 ? (
         <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 8 }}>
           {sessions.slice(0, 10).map((s) => (
-            <div key={s.id} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}>
+            <div key={s.id} style={{ background: C.bg, border: `1px solid ${C.border}`, borderRadius: 16, padding: "10px 12px" }}>
               <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{s.name}</div>
@@ -608,6 +611,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
     <div style={{ display: "flex", flexDirection: "column", gap: 18 }}>
       {nav === "today" && (<>
         <Head title={`${(h=>h<12?"Good morning":h<18?"Good afternoon":"Good evening")(new Date().getHours())}${me?.displayName || me?.username ? ", " + (me.displayName || me.username) : ""}`} sub={block?.riderLabel ? `Training you as a ${block.riderLabel}.` : "Here's where you stand today."} />
+        <GlanceStrip profile={profile} weights={weights} events={events} pmc={todayPmc} />
         <Card><GoalHeader profile={profile} weights={weights} onEdit={onEdit} events={events} /></Card>
         {block ? (
           <Card style={tz ? { borderLeft: `4px solid ${tz.color}` } : {}}>
@@ -716,6 +720,18 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
                 {lastSession.avgPower != null && <Metric v={`${lastSession.avgPower}W`} l="avg" />}
               </div>
             </div>
+            {lastSession.score != null && (
+              <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12, background: C.surfaceHi, borderRadius: 18, padding: "12px 14px" }}>
+                <div style={{ display: "flex", alignItems: "baseline", gap: 1, flexShrink: 0 }}>
+                  <span style={{ fontSize: 30, fontWeight: 800, fontFamily: C.mono, color: lastSession.score >= 7 ? "#059669" : lastSession.score >= 5 ? C.brand : "#D97706", lineHeight: 1 }}>{lastSession.score}</span>
+                  <span style={{ fontSize: 14, color: C.faint, fontWeight: 700 }}>/10</span>
+                </div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 13.5, lineHeight: 1.45, color: C.text }}>{lastSession.scoreVerdict}</div>
+                  {lastSession.scoreDetail && <div style={{ fontSize: 11.5, color: C.muted, fontFamily: C.mono, marginTop: 2 }}>{lastSession.scoreDetail}</div>}
+                </div>
+              </div>
+            )}
             <p style={{ lineHeight: 1.6, margin: "12px 0 0", fontSize: 14.5 }}>{lastSessionRemark(lastSession, tssOf(lastSession))}</p>
             {!lastSession.feedback ? (
               <div style={{ marginTop: 12, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
@@ -793,7 +809,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
           </div>
         </div>
         {health && (
-          <div style={{ borderRadius: 10, padding: "10px 14px", fontSize: 13.5, lineHeight: 1.5, background: health.testing ? C.surfaceHi : health.ok ? "#ECFDF5" : "#FEF2F2", border: `1px solid ${health.testing ? C.border : health.ok ? "#6EE7B7" : "#FCA5A5"}`, color: health.testing ? C.muted : health.ok ? "#065F46" : "#B91C1C" }}>
+          <div style={{ borderRadius: 16, padding: "10px 14px", fontSize: 13.5, lineHeight: 1.5, background: health.testing ? C.surfaceHi : health.ok ? "#ECFDF5" : "#FEF2F2", border: `1px solid ${health.testing ? C.border : health.ok ? "#6EE7B7" : "#FCA5A5"}`, color: health.testing ? C.muted : health.ok ? "#065F46" : "#B91C1C" }}>
             {health.testing ? "Testing the coach connection…" : health.ok ? `✓ Coach connected — ${health.model} responded in ${health.ms}ms.` : `✕ Coach can't reach the model (${health.model}): ${health.error}`}
           </div>
         )}
@@ -807,11 +823,11 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
             )}
             {chat.map((m, i) => (
               <div key={i} style={{ display: "flex", flexDirection: "column", alignItems: m.role === "user" ? "flex-end" : "flex-start", gap: 6 }}>
-                <div style={{ maxWidth: "84%", padding: "10px 13px", borderRadius: 14, fontSize: 14.5, lineHeight: 1.55, whiteSpace: "pre-wrap",
+                <div style={{ maxWidth: "84%", padding: "10px 13px", borderRadius: 20, fontSize: 14.5, lineHeight: 1.55, whiteSpace: "pre-wrap",
                   background: m.role === "user" ? C.brand : C.surfaceHi, color: m.role === "user" ? "#fff" : C.text,
                   borderBottomRightRadius: m.role === "user" ? 4 : 14, borderBottomLeftRadius: m.role === "user" ? 14 : 4 }}>{m.content}</div>
                 {m.role === "assistant" && m.proposal && i === chat.length - 1 && propDismissed !== i && (
-                  <div style={{ background: C.surface, border: `1px solid ${C.brand}`, borderRadius: 12, padding: "12px 14px", maxWidth: "94%" }}>
+                  <div style={{ background: C.surface, border: `1px solid ${C.brand}`, borderRadius: 18, padding: "12px 14px", maxWidth: "94%" }}>
                     <div style={{ fontSize: 11, letterSpacing: 1, textTransform: "uppercase", color: C.brand, fontWeight: 700 }}>Proposed change</div>
                     <div style={{ fontSize: 14, marginTop: 6, lineHeight: 1.5 }}>{m.proposal.summary || "Adjust your plan"}</div>
                     <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
@@ -853,7 +869,7 @@ function NutritionView({ profile, weights, today, plan, onGenerate, busy }) {
   })();
 
   const Stat = ({ label, value, unit, color }) => (
-    <div style={{ flex: 1, minWidth: 120, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 12, padding: "14px 16px" }}>
+    <div style={{ flex: 1, minWidth: 120, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 18, padding: "14px 16px" }}>
       <div style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>{label}</div>
       <div style={{ fontSize: 24, fontWeight: 800, fontFamily: C.mono, marginTop: 5, color: color || C.text }}>{value}<span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}> {unit}</span></div>
     </div>
@@ -920,6 +936,36 @@ function NutritionView({ profile, weights, today, plan, onGenerate, busy }) {
         </div>
       )}
     </>
+  );
+}
+
+function GlanceStrip({ profile, weights, events, pmc }) {
+  if (!profile) return null;
+  const next = nextEventOf(events, profile);
+  const days = next ? Math.max(0, Math.round((new Date(next.date) - new Date()) / 86400000)) : null;
+  const cw = latestWeight(weights, profile);
+  const wkg = cw ? (profile.currentFTP / cw).toFixed(2) : null;
+  const tsb = pmc && !pmc.empty ? pmc.current.tsb : null;
+  const form = tsb == null ? null : (tsb > 5 ? "Fresh" : tsb < -20 ? "Fatigued" : tsb < -5 ? "Building" : "Neutral");
+  const formCol = tsb == null ? C.muted : (tsb > 5 ? "#059669" : tsb < -20 ? "#DC2626" : C.brand);
+  const tiles = [
+    days != null && { label: next.name?.length > 12 ? "Next race" : (next.name || "Next race"), value: days, unit: "days", color: C.brand },
+    { label: "FTP", value: profile.currentFTP, unit: "W", color: C.text },
+    wkg && { label: "Power/weight", value: wkg, unit: "w/kg", color: C.text },
+    form && { label: "Form", value: form, unit: tsb > 0 ? `+${tsb}` : `${tsb}`, color: formCol },
+  ].filter(Boolean);
+  return (
+    <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 2, margin: "0 -2px", WebkitOverflowScrolling: "touch" }}>
+      {tiles.map((t, i) => (
+        <div key={i} style={{ flex: "1 0 auto", minWidth: 92, background: C.surface, borderRadius: 20, padding: "13px 16px", boxShadow: "0 1px 2px rgba(17,24,39,.04), 0 6px 20px rgba(17,24,39,.05)" }}>
+          <div style={{ fontSize: 10.5, color: C.muted, textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 700, whiteSpace: "nowrap" }}>{t.label}</div>
+          <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: 5 }}>
+            <span style={{ fontSize: 23, fontWeight: 800, color: t.color, fontFamily: C.mono, lineHeight: 1 }}>{t.value}</span>
+            <span style={{ fontSize: 11.5, color: C.faint, fontWeight: 600 }}>{t.unit}</span>
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -992,7 +1038,7 @@ function WeightCard({ profile, weights, kg, setKg, logWeight, removeWeight }) {
       {sorted.length > 0 && (
         <div style={{ marginTop: 12, display: "flex", flexWrap: "wrap", gap: 6 }}>
           {sorted.slice(0, 8).map((w) => (
-            <span key={w.id} onClick={() => removeWeight(w.id)} title="Click to remove" style={{ cursor: "pointer", fontFamily: C.mono, fontSize: 12, color: C.muted, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 8px" }}>
+            <span key={w.id} onClick={() => removeWeight(w.id)} title="Click to remove" style={{ cursor: "pointer", fontFamily: C.mono, fontSize: 12, color: C.muted, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 14, padding: "4px 8px" }}>
               {w.date.slice(5, 10)} · {w.kg}
             </span>
           ))}
@@ -1006,7 +1052,7 @@ function ManualForm({ onAdd }) {
   const [f, setF] = useState({ name: "", durationMin: "", avgPower: "", distanceKm: "", avgHr: "" });
   const u = (k, v) => setF((p) => ({ ...p, [k]: v }));
   return (
-    <div style={{ marginTop: 14, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: 14, display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
+    <div style={{ marginTop: 14, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 16, padding: 14, display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 10 }}>
       <input style={{ ...input, gridColumn: "1 / -1" }} placeholder="Name (e.g. Threshold 3x12)" value={f.name} onChange={(e) => u("name", e.target.value)} />
       <input style={{ ...input, fontFamily: C.mono }} placeholder="Duration (min)" type="number" value={f.durationMin} onChange={(e) => u("durationMin", e.target.value)} />
       <input style={{ ...input, fontFamily: C.mono }} placeholder="Avg power (W)" type="number" value={f.avgPower} onChange={(e) => u("avgPower", e.target.value)} />
@@ -1060,7 +1106,7 @@ function WeekList({ block, focusWeek, setFocusWeek, curWeek, selected, setSelect
       </div>
       {wi !== curWeek && <button onClick={() => setFocusWeek(curWeek)} className="ghost" style={{ ...ghostBtn, fontSize: 12.5, marginBottom: 10, width: "100%" }}>Jump to this week</button>}
       {onSetHours && (
-        <div style={{ background: C.surfaceHi, borderRadius: 12, padding: "10px 12px", marginBottom: 12 }}>
+        <div style={{ background: C.surfaceHi, borderRadius: 18, padding: "10px 12px", marginBottom: 12 }}>
           <div style={{ fontSize: 12.5, color: C.muted, textAlign: "center", marginBottom: 7 }}>{wk.hoursCap ? <>Fitted to <b style={{ color: C.text }}>{wk.hoursCap}h</b> this week</> : <><b style={{ color: C.text }}>{wk.targetHours}h</b> planned</>} — how much time do you have?</div>
           <div style={{ display: "flex", gap: 6, justifyContent: "center", flexWrap: "wrap" }}>
             {[4, 6, 8, 10, 12].map((h) => <button key={h} onClick={() => onSetHours(start, h)} className="ghost" style={{ ...ghostBtn, padding: "5px 13px", fontSize: 12.5, ...(wk.hoursCap === h ? { borderColor: C.brand, color: C.brand, background: C.brandSoft } : {}) }}>{h}h</button>)}
@@ -1078,7 +1124,7 @@ function WeekList({ block, focusWeek, setFocusWeek, curWeek, selected, setSelect
           const ev = eventDates.has(date);
           return (
             <button key={di} onClick={() => setSelected(active ? null : { week: wi, day: di })}
-              style={{ display: "flex", alignItems: "center", gap: 12, textAlign: "left", width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${active ? z.color : isToday ? C.brand : C.border}`, background: active ? C.brandSoft : C.surface, cursor: "pointer", color: C.text }}>
+              style={{ display: "flex", alignItems: "center", gap: 12, textAlign: "left", width: "100%", padding: "12px 14px", borderRadius: 18, border: `1px solid ${active ? z.color : isToday ? C.brand : C.border}`, background: active ? C.brandSoft : C.surface, cursor: "pointer", color: C.text }}>
               <div style={{ width: 4, alignSelf: "stretch", borderRadius: 3, minHeight: 34, background: rest ? C.border : missed ? "#FB7185" : off ? C.faint : z.color }} />
               <div style={{ minWidth: 46 }}>
                 <div style={{ fontSize: 13, fontWeight: 800, color: isToday ? C.brand : C.text }}>{d.day}</div>
@@ -1129,7 +1175,7 @@ function MonthGrid({ dateMap, monthCursor, setMonthCursor, selected, setSelected
           const ev = eventDates.has(iso);
           return (
             <button key={i} onClick={() => hit && setSelected(active ? null : { week: hit.wi, day: hit.di })} disabled={!hit}
-              style={{ aspectRatio: "1 / 1", minHeight: 42, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 4, border: `1px solid ${active ? z.color : isToday ? C.brand : C.border}`, borderRadius: 8, cursor: hit ? "pointer" : "default", background: active ? C.brandSoft : C.surface, opacity: inMonth ? 1 : 0.38, color: C.text }}>
+              style={{ aspectRatio: "1 / 1", minHeight: 42, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 4, border: `1px solid ${active ? z.color : isToday ? C.brand : C.border}`, borderRadius: 14, cursor: hit ? "pointer" : "default", background: active ? C.brandSoft : C.surface, opacity: inMonth ? 1 : 0.38, color: C.text }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                 <span style={{ fontSize: 10.5, fontWeight: 800, color: isToday ? C.brand : C.muted }}>{c.getUTCDate()}</span>
                 {ev && <span style={{ color: C.brand }}>{ICONS.race}</span>}
@@ -1163,7 +1209,7 @@ function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRege
       {Array.isArray(block.phases) && block.phases.length > 0 && (
         <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
           {block.phases.map((p, i) => (
-            <span key={i} style={{ fontSize: 11.5, color: C.muted, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "4px 9px" }}>
+            <span key={i} style={{ fontSize: 11.5, color: C.muted, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 14, padding: "4px 9px" }}>
               <b style={{ color: C.text }}>{p.name}</b>{p.weeks ? ` · wk ${p.weeks}` : ""}
             </span>
           ))}
@@ -1222,7 +1268,7 @@ function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRege
             </div>
           )}
           {replaceOpen && (
-            <div style={{ marginTop: 10, background: C.surfaceHi, borderRadius: 10, padding: 12 }}>
+            <div style={{ marginTop: 10, background: C.surfaceHi, borderRadius: 16, padding: 12 }}>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Replace with a different session:</div>
               <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
                 {[["recovery", "Recovery"], ["endurance", "Endurance"], ["tempo", "Tempo"], ["sweetspot", "Sweet Spot"], ["threshold", "Threshold"], ["vo2", "VO2"], ["anaerobic", "Anaerobic"], ["sprint", "Sprint"]].map(([k, l]) => (
@@ -1232,7 +1278,7 @@ function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRege
             </div>
           )}
           {moveOpen && (
-            <div style={{ marginTop: 10, background: C.surfaceHi, borderRadius: 10, padding: 12 }}>
+            <div style={{ marginTop: 10, background: C.surfaceHi, borderRadius: 16, padding: 12 }}>
               <div style={{ fontSize: 12, color: C.muted, marginBottom: 8 }}>Swap with which day?</div>
               <div style={{ display: "flex", gap: 5, flexWrap: "wrap" }}>
                 {selWeek.days.map((d, ti) => ti !== selected.day && (
@@ -1268,7 +1314,7 @@ function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRege
 function WeekRow({ wk, wi, isCurrent, selected, setSelected, wkEvents }) {
   const PRIO = { A: "#FB7185", B: "#FBBF24", C: "#A3E635" };
   return (
-    <div style={{ background: isCurrent ? C.surfaceHi : C.surface, border: `1px solid ${isCurrent ? C.brand : C.border}`, borderRadius: 12, padding: 12 }}>
+    <div style={{ background: isCurrent ? C.surfaceHi : C.surface, border: `1px solid ${isCurrent ? C.brand : C.border}`, borderRadius: 18, padding: 12 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8, gap: 8, flexWrap: "wrap" }}>
         <div style={{ fontSize: 13, fontWeight: 700 }}>
           Week {wk.weekNumber} <span style={{ color: C.muted, fontWeight: 600 }}>· {wk.phase}</span>
@@ -1277,7 +1323,7 @@ function WeekRow({ wk, wi, isCurrent, selected, setSelected, wkEvents }) {
         <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>{wk.startDate ? wk.startDate.slice(5) : ""}{wk.targetHours ? ` · ${wk.targetHours}h` : ""}</div>
       </div>
       {(wkEvents || []).map((e) => (
-        <div key={e.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: C.bg, border: `1px solid ${PRIO[e.priority] || C.brand}`, borderRadius: 8, padding: "3px 9px", marginBottom: 8, marginRight: 6, fontSize: 11.5 }}>
+        <div key={e.id} style={{ display: "inline-flex", alignItems: "center", gap: 6, background: C.bg, border: `1px solid ${PRIO[e.priority] || C.brand}`, borderRadius: 14, padding: "3px 9px", marginBottom: 8, marginRight: 6, fontSize: 11.5 }}>
           <span style={{ width: 7, height: 7, borderRadius: 999, background: PRIO[e.priority] || C.brand }} />
           <b><span style={{ color: C.brand, marginRight: 4, verticalAlign: -1 }}>{ICONS.race}</span>{e.name}</b> <span style={{ color: C.muted }}>· {e.priority}</span>
         </div>
@@ -1327,7 +1373,7 @@ function ProgressionCard({ progression, ftpSuggestion, onBumpFtp }) {
         })}
       </div>
       {ftpSuggestion && (
-        <div style={{ marginTop: 14, background: C.brandSoft, border: `1px solid ${C.brand}`, borderRadius: 10, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+        <div style={{ marginTop: 14, background: C.brandSoft, border: `1px solid ${C.brand}`, borderRadius: 16, padding: "10px 14px", display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
           <div style={{ fontSize: 13 }}>Recent rides suggest your FTP may be <b style={{ color: C.brand }}>~{ftpSuggestion.suggested}W</b> ({ftpSuggestion.basis}).</div>
           <button onClick={() => onBumpFtp(ftpSuggestion.suggested)} className="primary" style={{ ...primaryBtn, width: "auto", padding: "8px 16px", fontSize: 13 }}>Update FTP</button>
         </div>
@@ -1390,7 +1436,7 @@ function WorkoutGenerator() {
       </div>
       <button onClick={make} className="primary" style={{ ...primaryBtn, width: "auto", padding: "10px 20px" }}>{gen ? "Generate another" : "Generate workout"}</button>
       {gen && (
-        <div style={{ marginTop: 16, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14 }}>
+        <div style={{ marginTop: 16, border: `1px solid ${C.border}`, borderRadius: 18, padding: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
             <div style={{ fontSize: 16, fontWeight: 800 }}>{gen.name}</div>
             <div style={{ fontFamily: C.mono, color: C.muted, fontSize: 12.5 }}>{gen.durationMin}min · {gen.tss} TSS</div>
@@ -1457,7 +1503,7 @@ function LibraryCard({ riderType }) {
         {list.slice(0, shown).map((w) => {
           const col = CAT_COLORS[w.cat] || C.brand; const isOpen = open === w.id;
           return (
-            <div key={w.id} style={{ background: C.bg, border: `1px solid ${isOpen ? col : C.border}`, borderLeft: `4px solid ${col}`, borderRadius: 10, padding: "10px 12px" }}>
+            <div key={w.id} style={{ background: C.bg, border: `1px solid ${isOpen ? col : C.border}`, borderLeft: `4px solid ${col}`, borderRadius: 16, padding: "10px 12px" }}>
               <div onClick={() => setOpen(isOpen ? null : w.id)} style={{ display: "flex", alignItems: "center", gap: 10, cursor: "pointer" }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ fontSize: 14, fontWeight: 700 }}>{w.name}</div>
@@ -1543,7 +1589,7 @@ function AnalyticsCard({ sessions, profile }) {
         <span style={{ fontFamily: C.mono, color: steepRamp ? "#FBBF24" : C.muted }}>ramp {pmc.rampPerWeek > 0 ? "+" : ""}{pmc.rampPerWeek}/wk{steepRamp ? " ⚠ steep" : ""}</span>
       </div>
       {pmc.projection && pmc.daysToEvent != null && (
-        <div style={{ marginTop: 10, background: C.surfaceHi, borderRadius: 10, padding: "10px 12px", fontSize: 13, lineHeight: 1.5 }}>
+        <div style={{ marginTop: 10, background: C.surfaceHi, borderRadius: 16, padding: "10px 12px", fontSize: 13, lineHeight: 1.5 }}>
           Holding current load you'll reach <b style={{ color: C.brand }}>~{Math.round(pmc.projection.eventCtl)} fitness</b> on event day at form <b style={{ color: pmc.projection.eventTsb > 0 ? "#34D399" : "#FBBF24" }}>{fmt(pmc.projection.eventTsb)}</b> ({pmc.daysToEvent} days out). {pmc.projection.eventTsb < 5 ? "Ease the final 1–2 weeks so form swings positive and you arrive fresh." : "That's race-ready freshness — protect the taper."}
         </div>
       )}
@@ -1580,7 +1626,7 @@ function EventsCard({ events, setEvents, setError, scheduleRebuild }) {
             const past = e.date < today;
             const wo = Math.round((new Date(e.date) - Date.now()) / (7 * 86400000));
             return (
-              <div key={e.id} style={{ background: C.bg, border: `1px solid ${C.border}`, borderLeft: `4px solid ${EV_PRIO[e.priority] || C.brand}`, borderRadius: 10, padding: "10px 12px" }}>
+              <div key={e.id} style={{ background: C.bg, border: `1px solid ${C.border}`, borderLeft: `4px solid ${EV_PRIO[e.priority] || C.brand}`, borderRadius: 16, padding: "10px 12px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ fontSize: 14, fontWeight: 700 }}>{e.name} <span style={{ fontSize: 10.5, color: EV_PRIO[e.priority], fontWeight: 800 }}>{e.priority}</span></div>
@@ -1627,7 +1673,7 @@ function AvailabilityCard({ availability, setAvailability, setError, scheduleReb
       {list.length > 0 && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 14 }}>
           {list.map((a) => (
-            <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 10, padding: "10px 12px" }}>
+            <div key={a.id} style={{ display: "flex", alignItems: "center", gap: 10, background: C.bg, border: `1px solid ${C.border}`, borderRadius: 16, padding: "10px 12px" }}>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 14, fontWeight: 700 }}>{a.type === "illness" ? "Illness" : "Holiday"}{a.notes ? ` · ${a.notes}` : ""}</div>
                 <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>{a.start} → {a.end}</div>

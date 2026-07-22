@@ -5,6 +5,24 @@ import { planWorkout } from "../../../../lib/generate.js";
 
 const HARD = ["vo2", "threshold", "anaerobic", "sprint"];
 const iso = (ms) => new Date(ms).toISOString().slice(0, 10);
+const WD = { sun: 0, sunday: 0, mon: 1, monday: 1, tue: 2, tues: 2, tuesday: 2, wed: 3, weds: 3, wednesday: 3, thu: 4, thur: 4, thurs: 4, thursday: 4, fri: 5, friday: 5, sat: 6, saturday: 6 };
+const planDates = (block) => (block?.weeks || []).flatMap((w) => w.days.map((d) => d.date)).filter(Boolean).sort();
+// Resolve "today" / "tomorrow" / a weekday / "this weekend" / ISO into a real plan date.
+// This means the AI never has to compute a date — it can just say "today", and the change lands.
+function resolveDate(raw, block) {
+  if (!raw) return null;
+  const s = String(raw).trim().toLowerCase();
+  const today = iso(Date.now());
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if (s === "today" || s === "tonight") return today;
+  if (s === "tomorrow" || s === "tmrw") return iso(Date.now() + 86400000);
+  if (s.includes("day after")) return iso(Date.now() + 2 * 86400000);
+  const upcoming = planDates(block).filter((d) => d >= today);
+  const wdKey = Object.keys(WD).sort((a, b) => b.length - a.length).find((k) => new RegExp(`\\b${k}\\b`).test(s));
+  if (wdKey) { const hit = upcoming.find((d) => new Date(d + "T00:00:00Z").getUTCDay() === WD[wdKey]); if (hit) return hit; }
+  if (s.includes("weekend")) { const hit = upcoming.find((d) => [0, 6].includes(new Date(d + "T00:00:00Z").getUTCDay())); if (hit) return hit; }
+  return null;
+}
 const TYPE_KEY = { endurance: "end", recovery: "rec", tempo: "tempo", sweetspot: "ss", threshold: "thr", vo2: "vo2", anaerobic: "anaerobic", sprint: "sprint" };
 const LADDER = ["recovery", "endurance", "tempo", "sweetspot", "threshold", "vo2", "anaerobic"];
 const durOf = (steps) => { const s = steps.reduce((a, x) => a + x.durationSec, 0) / 60; return s >= 60 ? `${Math.floor(s / 60)}h${s % 60 ? String(Math.round(s % 60)).padStart(2, "0") : ""}` : `${Math.round(s)}min`; };
@@ -44,8 +62,8 @@ export async function POST(req) {
     note = `Done — from ${from}, your plan now focuses on ${FOCUS_LABELS[focus]}. Open the calendar to see the new sessions.`;
   } else if (action === "time_off") {
     if (!store.profile) return Response.json({ error: "Set up your goal first." }, { status: 400 });
-    const from = p.from, to = p.to || p.from;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(from || "") || !/^\d{4}-\d{2}-\d{2}$/.test(to || "") || to < from) return Response.json({ error: "That change wasn't specific enough to apply." }, { status: 400 });
+    const from = resolveDate(p.from, block), to = resolveDate(p.to || p.from, block);
+    if (!from || !to || to < from) return Response.json({ error: "Which days are you away? Try 'tomorrow' or a weekday." }, { status: 400 });
     const availability = [...(store.availability || []), { id: `${Date.now()}-c`, type: "holiday", start: from, end: to, notes: "via coach" }].sort((a, b) => a.start.localeCompare(b.start));
     const nb = buildSkeleton(store.profile, store.weights || [], eventsOf(store), availability, store.focuses || [], store.weekHours || {});
     applyAvailability(nb, availability);
@@ -53,8 +71,8 @@ export async function POST(req) {
     note = from === to ? `Done — ${from} is now clear, and I've re-shaped the plan around it.` : `Done — ${from} to ${to} is now clear, and I've re-shaped the plan around it.`;
   } else if (action === "set_day") {
     if (!block?.weeks?.length) return Response.json({ error: "No plan to adjust yet." }, { status: 400 });
-    const date = p.date, to = p.to;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(date || "")) return Response.json({ error: "Which day did you mean?" }, { status: 400 });
+    const date = resolveDate(p.date, block), to = p.to;
+    if (!date) return Response.json({ error: "Which day did you mean? Try 'today', 'tomorrow', or a weekday." }, { status: 400 });
     let done = false;
     for (const wk of block.weeks) {
       const di = wk.days.findIndex((d) => d.date === date);
@@ -66,8 +84,8 @@ export async function POST(req) {
     note = `Done — ${date} is now ${nd.title}${nd.duration && nd.duration !== "—" ? ` (${nd.duration})` : ""}.`;
   } else if (action === "swap_days") {
     if (!block?.weeks?.length) return Response.json({ error: "No plan to adjust yet." }, { status: 400 });
-    const A = p.a, B = p.b;
-    if (!/^\d{4}-\d{2}-\d{2}$/.test(A || "") || !/^\d{4}-\d{2}-\d{2}$/.test(B || "")) return Response.json({ error: "That change wasn't specific enough to apply." }, { status: 400 });
+    const A = resolveDate(p.a, block), B = resolveDate(p.b, block);
+    if (!A || !B) return Response.json({ error: "Which two days should I swap?" }, { status: 400 });
     let da = null, db = null;
     for (const wk of block.weeks) {
       const ws = new Date(wk.startDate + "T00:00:00Z").getTime();

@@ -1,6 +1,7 @@
 import { readStore, patchStore } from "../../../../lib/store.js";
 import { extractSessionFromImages } from "../../../../lib/coach.js";
 import { estimateFtp } from "../../../../lib/ftp.js";
+import { scoreForSession } from "../../../../lib/score.js";
 
 export const maxDuration = 60;
 
@@ -37,9 +38,10 @@ export async function POST(req) {
       ...(b20 ? { best20: b20 } : {}),
     };
     const store = await readStore();
+    const score = scoreForSession(session, store);
     const saved = await patchStore({ sessions: [session, ...(store.sessions || [])] });
     const ftpRec = estimateFtp(saved.sessions, store.profile);
-    return Response.json({ ...saved, session, ftpRec: ftpRec?.suggestion ? ftpRec : null });
+    return Response.json({ ...saved, session, score, ftpRec: ftpRec?.suggestion ? ftpRec : null });
   } catch (e) {
     return Response.json({ error: e.message || "Couldn't read the screenshot." }, { status: 500 });
   }
