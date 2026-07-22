@@ -783,7 +783,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
       </>)}
 
       {nav === "analytics" && (<>
-        <Head title="Analytics" sub="Fitness, fatigue and form — plus your zone progression." />
+        <Head title="Your progress" sub="Your fitness in plain English — when to push, when to rest, and how race day is shaping up." />
         <AnalyticsCard sessions={sessions} profile={profile} />
         {block && <ProgressionCard progression={progression} ftpSuggestion={ftpSuggestion} onBumpFtp={bumpFtp} />}
         <WeightCard profile={profile} weights={weights} kg={kg} setKg={setKg} logWeight={logWeight} removeWeight={removeWeight} />
@@ -1561,8 +1561,8 @@ function AnalyticsCard({ sessions, profile }) {
   if (pmc.empty) {
     return (
       <Card>
-        <Eyebrow>Fitness · Fatigue · Form</Eyebrow>
-        <div style={{ color: C.muted, fontSize: 13, marginTop: 8, lineHeight: 1.5 }}>Log a few rides and your fitness, fatigue and form chart builds here — the picture that tells you when to push and when to back off.</div>
+        <Eyebrow>Your fitness story</Eyebrow>
+        <div style={{ color: C.muted, fontSize: 14, marginTop: 10, lineHeight: 1.6 }}>Log a few rides and your fitness picture builds here — a simple read on when to push hard and when to back off. Every ride you log makes it sharper.</div>
       </Card>
     );
   }
@@ -1573,27 +1573,42 @@ function AnalyticsCard({ sessions, profile }) {
     try { const r = await fetch("/api/form", { method: "POST" }); const d = await jget(r); setRead(r.ok ? d.read : d.error || "Unavailable."); }
     catch { setRead("Unavailable — try again."); } finally { setLoading(false); }
   };
-  const steepRamp = pmc.rampPerWeek > 8;
+  const st = pmc.status;
+  const tiles = [
+    { label: "Fitness", sub: "your engine", value: Math.round(c.ctl), color: C.brand, arrow: pmc.rampPerWeek > 0.5 ? "rising" : pmc.rampPerWeek < -0.5 ? "easing" : "steady" },
+    { label: "Fatigue", sub: "recent load", value: Math.round(c.atl), color: "#F43F5E" },
+    { label: "Freshness", sub: "how rested", value: fmt(c.tsb), color: st.color },
+  ];
   return (
     <Card>
-      <Eyebrow>Fitness · Fatigue · Form</Eyebrow>
-      <div style={{ display: "flex", gap: 20, marginTop: 12, flexWrap: "wrap" }}>
-        <Stat label="Fitness (CTL)" value={Math.round(c.ctl)} unit="" />
-        <Stat label="Fatigue (ATL)" value={Math.round(c.atl)} unit="" color="#FB7185" />
-        <Stat label="Form (TSB)" value={fmt(c.tsb)} unit="" color={pmc.status.color} />
+      <Eyebrow>Your fitness story</Eyebrow>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
+        <span style={{ background: st.color, color: "#fff", fontSize: 12, fontWeight: 800, padding: "4px 11px", borderRadius: 999 }}>{st.label}</span>
       </div>
-      <div style={{ fontSize: 13, marginTop: 8 }}><span style={{ color: pmc.status.color, fontWeight: 700 }}>{pmc.status.label}</span> <span style={{ color: C.muted }}>— {pmc.status.note}.</span></div>
+      <p style={{ fontSize: 15.5, lineHeight: 1.55, margin: "10px 0 0", fontWeight: 500 }}>{st.headline}</p>
+
+      <div style={{ display: "flex", gap: 10, marginTop: 16, flexWrap: "wrap" }}>
+        {tiles.map((t) => (
+          <div key={t.label} style={{ flex: "1 1 90px", background: C.surfaceHi, borderRadius: 18, padding: "12px 14px" }}>
+            <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>{t.label}</div>
+            <div style={{ display: "flex", alignItems: "baseline", gap: 5, marginTop: 4 }}>
+              <span style={{ fontSize: 26, fontWeight: 800, fontFamily: C.mono, color: t.color, lineHeight: 1 }}>{t.value}</span>
+              {t.arrow && <span style={{ fontSize: 11, color: t.arrow === "rising" ? "#059669" : C.muted, fontWeight: 700 }}>{t.arrow === "rising" ? "↑ rising" : t.arrow === "easing" ? "↓ easing" : "steady"}</span>}
+            </div>
+            <div style={{ fontSize: 11.5, color: C.faint, marginTop: 3 }}>{t.sub}</div>
+          </div>
+        ))}
+      </div>
+
       <PMCChart series={pmc.series} projection={pmc.projection} />
-      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: C.muted, marginTop: 6, flexWrap: "wrap", gap: 8 }}>
-        <span><span style={{ color: C.brand }}>━</span> Fitness&nbsp;&nbsp;<span style={{ color: "#FB7185" }}>━</span> Fatigue&nbsp;&nbsp;<span style={{ color: C.brand }}>┄</span> projected</span>
-        <span style={{ fontFamily: C.mono, color: steepRamp ? "#FBBF24" : C.muted }}>ramp {pmc.rampPerWeek > 0 ? "+" : ""}{pmc.rampPerWeek}/wk{steepRamp ? " ⚠ steep" : ""}</span>
-      </div>
+      <div style={{ fontSize: 11.5, color: C.muted, marginTop: 6 }}><span style={{ color: C.brand }}>━</span> Fitness&nbsp;&nbsp;<span style={{ color: "#F43F5E" }}>━</span> Fatigue&nbsp;&nbsp;<span style={{ color: C.brand }}>┄</span> where you're heading</div>
+
       {pmc.projection && pmc.daysToEvent != null && (
-        <div style={{ marginTop: 10, background: C.surfaceHi, borderRadius: 16, padding: "10px 12px", fontSize: 13, lineHeight: 1.5 }}>
-          Holding current load you'll reach <b style={{ color: C.brand }}>~{Math.round(pmc.projection.eventCtl)} fitness</b> on event day at form <b style={{ color: pmc.projection.eventTsb > 0 ? "#34D399" : "#FBBF24" }}>{fmt(pmc.projection.eventTsb)}</b> ({pmc.daysToEvent} days out). {pmc.projection.eventTsb < 5 ? "Ease the final 1–2 weeks so form swings positive and you arrive fresh." : "That's race-ready freshness — protect the taper."}
+        <div style={{ marginTop: 12, background: C.brandSoft, borderRadius: 18, padding: "12px 14px", fontSize: 13.5, lineHeight: 1.55 }}>
+          <b>On track for race day.</b> Keep this up and you'll arrive with <b style={{ color: C.brand }}>noticeably more fitness</b> in {pmc.daysToEvent} days. {pmc.projection.eventTsb < 5 ? "We'll ease the last week or two so you turn up fresh and fast — I'll flag it when it's time." : "Your freshness is landing right where it should for race day — nicely timed."}
         </div>
       )}
-      <button onClick={getRead} disabled={loading} className="ghost" style={{ ...ghostBtn, marginTop: 12, borderColor: C.brand, color: C.text }}>{loading ? "Reading…" : "Coach's read on my form"}</button>
+      <button onClick={getRead} disabled={loading} className="ghost" style={{ ...ghostBtn, marginTop: 12, borderColor: C.brand, color: C.text }}>{loading ? "Reading…" : "Ask the coach about my form"}</button>
       {read && <p style={{ lineHeight: 1.6, marginTop: 12, fontSize: 14.5 }}>{read}</p>}
     </Card>
   );
