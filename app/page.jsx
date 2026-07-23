@@ -206,10 +206,13 @@ const ICONS = {
   coach: <Ic d={<path d="M4 4.5h12a1 1 0 0 1 1 1V13a1 1 0 0 1-1 1H9l-3.5 3V14H4a1 1 0 0 1-1-1V5.5a1 1 0 0 1 1-1Z" />} />,
   admin: <Ic d={<><circle cx="10" cy="10" r="2.6" /><path d="M10 3v2.2M10 14.8V17M3 10h2.2M14.8 10H17M5.2 5.2l1.5 1.5M13.3 13.3l1.5 1.5M14.8 5.2l-1.5 1.5M6.7 13.3l-1.5 1.5" /></>} />,
   logout: <Ic d={<><path d="M12.5 6.5V4.5a1 1 0 0 0-1-1H5a1 1 0 0 0-1 1v11a1 1 0 0 0 1 1h6.5a1 1 0 0 0 1-1v-2" /><path d="M8.5 10H17M14.5 7.5 17 10l-2.5 2.5" /></>} />,
+  plan: <Ic d={<><path d="M3.5 15.5V6a1 1 0 0 1 1-1h4l1.5 1.5H15a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1H4.5a1 1 0 0 1-1-1Z" /><path d="M7 11.5h6M7 13.5h4" /></>} />,
   race: <Ic size={12} d={<path d="M5 3v14M5 3.5h9l-2.5 3L14 9.5H5" fill="currentColor" strokeWidth="1.4" />} />,
 };
 
 const NAV = [
+  { label: "Plan" },
+  { id: "plan", label: "My plan", ic: "plan" },
   { label: "Train" },
   { id: "today", label: "Today", ic: "today" },
   { id: "calendar", label: "Calendar", ic: "calendar" },
@@ -886,6 +889,13 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
         <AnalyticsCard sessions={sessions} profile={profile} />
       </>)}
 
+      {nav === "plan" && (<>
+        <Head title="My plan" sub="Your season at a glance — discipline, phases and the races you're peaking for." />
+        {block ? (
+          <PlanOverview block={block} profile={profile} events={events} saveProfile={saveProfile} onRegenerate={onRegenerate} busy={busy} onEdit={onEdit} setNav={setNav} />
+        ) : buildPrompt}
+      </>)}
+
       {nav === "calendar" && (<>
         <Head title="Calendar" sub="Your plan, races and time off — periodised and rolling." />
         {block ? (
@@ -1089,6 +1099,112 @@ function GlanceStrip({ profile, weights, events, pmc }) {
         </div>
       ))}
     </div>
+  );
+}
+
+
+function PlanOverview({ block, profile, events, saveProfile, onRegenerate, busy, onEdit, setNav }) {
+  const rt = profile?.riderType || "gc";
+  const [saving, setSaving] = useState(null);
+  const today = new Date().toISOString().slice(0, 10);
+  const evs = [...(events || [])].filter((e) => e.date >= today).sort((a, b) => a.date.localeCompare(b.date));
+  const nextA = evs.find((e) => e.priority === "A") || evs[0];
+  const daysTo = nextA ? Math.max(0, Math.round((new Date(nextA.date) - new Date()) / 86400000)) : null;
+  const curIdx = Math.max(0, block.weeks.findIndex((w) => w.startDate > today) - 1);
+  const cur = block.weeks[curIdx] || block.weeks[0];
+  const switchType = async (k) => {
+    if (k === rt || saving) return;
+    setSaving(k);
+    try { await saveProfile({ ...profile, riderType: k }); await onRegenerate(); } finally { setSaving(null); }
+  };
+  // Phase ribbon
+  const phases = [];
+  for (const w of block.weeks) {
+    const last = phases[phases.length - 1];
+    if (last && last.name === w.phase) last.weeks++;
+    else phases.push({ name: w.phase, weeks: 1, start: w.startDate });
+  }
+  const PHASE_COL = { Base: "#60A5FA", Build: "#5A54C9", Peak: "#E8A23C", Taper: "#34D399", Race: "#E5605E", Recovery: "#A6ABB5", Transition: "#A3B18A" };
+  const totalW = block.weeks.length;
+  return (
+    <>
+      <Card>
+        <Eyebrow>Where you are now</Eyebrow>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
+          <div style={{ flex: "1 1 130px", background: C.surfaceHi, borderRadius: 18, padding: "13px 15px" }}>
+            <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Phase</div>
+            <div style={{ fontSize: 19, fontWeight: 700, color: PHASE_COL[cur.phase] || C.text, marginTop: 4 }}>{cur.phase}</div>
+            <div style={{ fontSize: 11.5, color: C.muted }}>week {cur.weekNumber} of {totalW}</div>
+          </div>
+          <div style={{ flex: "1 1 130px", background: C.surfaceHi, borderRadius: 18, padding: "13px 15px" }}>
+            <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>Peaking for</div>
+            <div style={{ fontSize: 16, fontWeight: 700, marginTop: 4, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{nextA ? nextA.name : "no race set"}</div>
+            <div style={{ fontSize: 11.5, color: C.muted }}>{daysTo != null ? `${daysTo} days · ${nextA.priority}-race` : "add one in Calendar"}</div>
+          </div>
+          <div style={{ flex: "1 1 130px", background: C.surfaceHi, borderRadius: 18, padding: "13px 15px" }}>
+            <div style={{ fontSize: 10.5, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>This week</div>
+            <div style={{ fontSize: 19, fontWeight: 700, marginTop: 4, fontFamily: C.mono }}>{cur.targetHours}h</div>
+            <div style={{ fontSize: 11.5, color: C.muted }}>{cur.focus}</div>
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <Eyebrow>Your season</Eyebrow>
+        <div style={{ color: C.muted, fontSize: 13, marginTop: 4, marginBottom: 12 }}>{block.summary}</div>
+        <div style={{ display: "flex", height: 12, borderRadius: 999, overflow: "hidden", gap: 1.5 }}>
+          {phases.map((p, i) => (
+            <div key={i} title={`${p.name} · ${p.weeks} week${p.weeks > 1 ? "s" : ""}`} style={{ flex: p.weeks, background: PHASE_COL[p.name] || C.faint, opacity: p.start <= today ? 1 : 0.5 }} />
+          ))}
+        </div>
+        <div style={{ display: "flex", gap: 12, flexWrap: "wrap", marginTop: 10 }}>
+          {[...new Set(phases.map((p) => p.name))].map((n) => (
+            <span key={n} style={{ fontSize: 11.5, color: C.muted, display: "flex", alignItems: "center", gap: 5 }}>
+              <span style={{ width: 9, height: 9, borderRadius: 3, background: PHASE_COL[n] || C.faint }} />{n}
+            </span>
+          ))}
+        </div>
+        {evs.length > 0 && (
+          <div style={{ marginTop: 14, display: "flex", flexDirection: "column", gap: 6 }}>
+            {evs.slice(0, 4).map((e) => (
+              <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 13.5 }}>
+                <span style={{ color: C.brand }}>{ICONS.race}</span>
+                <b>{e.name}</b>
+                <span style={{ color: C.muted, fontFamily: C.mono, fontSize: 12 }}>{e.date}</span>
+                <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: e.priority === "A" ? "#E5605E" : e.priority === "B" ? "#E8A23C" : C.muted }}>{e.priority}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card>
+        <Eyebrow>Rider profile</Eyebrow>
+        <div style={{ color: C.muted, fontSize: 13, marginTop: 4, marginBottom: 12 }}>Switch discipline and the whole plan re-shapes around its demands — instantly.</div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(175px, 1fr))", gap: 9 }}>
+          {ARCHETYPE_KEYS.map((k) => {
+            const active = rt === k;
+            return (
+              <button key={k} onClick={() => switchType(k)} disabled={!!saving} className="tap" style={{ textAlign: "left", padding: "12px 14px", borderRadius: 18, cursor: "pointer", background: active ? C.brandSoft : C.surface, border: active ? `2px solid ${C.brand}` : `1px solid ${C.border}`, color: C.text, opacity: saving && saving !== k ? 0.5 : 1 }}>
+                <div style={{ fontSize: 14, fontWeight: 700, color: active ? C.brand : C.text }}>{ARCHETYPES[k].label}{saving === k ? " …" : ""}</div>
+                <div style={{ fontSize: 11.5, color: C.muted, marginTop: 3, lineHeight: 1.45 }}>{ARCHETYPES[k].note}</div>
+              </button>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card>
+        <Eyebrow>Adjust your plan</Eyebrow>
+        <div style={{ color: C.muted, fontSize: 13, marginTop: 4, marginBottom: 12 }}>Coaching never really stops — as your races, form and life change, re-shape the plan and it keeps rolling toward your next A-race.</div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+          <button onClick={onEdit} className="primary" style={{ ...primaryBtn, width: "auto", padding: "12px 20px" }}>Re-run plan builder</button>
+          <button onClick={() => setNav("calendar")} className="ghost" style={ghostBtn}>Races &amp; time off</button>
+          <button onClick={() => setNav("coach")} className="ghost" style={ghostBtn}>Ask the coach to change it</button>
+          <button onClick={onRegenerate} disabled={busy} className="ghost" style={{ ...ghostBtn, opacity: busy ? 0.6 : 1 }}>{busy ? "Rebuilding…" : "Rebuild plan"}</button>
+        </div>
+      </Card>
+    </>
   );
 }
 
