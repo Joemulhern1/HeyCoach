@@ -1,18 +1,25 @@
 :root {
-  --bg: #F6F7F9;
-  --surface: #FFFFFF;
-  --surfaceHi: #EFF1F5;
-  --border: #E4E7EC;
-  --text: #14181F;
-  --muted: #5B6472;
-  --faint: #98A1AE;
-  --brand: #4338CA;
-  --brandSoft: #EDEEFA;
+  --bg: #F7F6F3;
+  --surface: #FDFDFC;
+  --surfaceHi: #F1EFEB;
+  --border: #E8E5E0;
+  --text: #2C3038;
+  --muted: #6E7481;
+  --faint: #A6ABB5;
+  --brand: #5A54C9;
+  --brandSoft: #F0EFFA;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; padding: 0; background: var(--bg); color: var(--text); }
-body { font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif; -webkit-font-smoothing: antialiased; font-feature-settings: "cv02","cv03","ss01"; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale;
+  font-feature-settings: "cv02","cv03","ss01";
+  line-height: 1.6; letter-spacing: 0.005em; font-size: 15.5px;
+}
+h1, h2, h3 { letter-spacing: -0.015em; line-height: 1.25; font-weight: 700; }
+p { line-height: 1.65; }
 button { font-family: inherit; }
 input, select { font-family: inherit; }
 button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
@@ -20,8 +27,8 @@ input:focus, select:focus { border-color: var(--brand) !important; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes pulse { 0%,100%{opacity:.5} 50%{opacity:1} }
 .pulse { animation: pulse 1.2s ease-in-out infinite; }
-.primary:hover { filter: brightness(1.25); }
-.ghost:hover { border-color: var(--brand); color: var(--brand); }
+.primary:hover { filter: brightness(1.35); }
+.ghost:hover { border-color: var(--faint); background: var(--surfaceHi); }
 .daycard:hover, .daytoggle:hover { border-color: var(--muted); }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; } }
 

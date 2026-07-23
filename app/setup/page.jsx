@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-const T = { bg: "#F4F6FA", surface: "#FFFFFF", border: "#E4E9F0", text: "#18212F", muted: "#64748B", brand: "#4338CA" };
+const T = { bg: "#F7F6F3", surface: "#FDFDFC", border: "#E8E5E0", text: "#2C3038", muted: "#6E7481", brand: "#5A54C9" };
 const inp = { background: "#F8FAFC", border: `1px solid ${T.border}`, color: T.text, borderRadius: 10, padding: "11px 12px", fontSize: 15, outline: "none", width: "100%" };
 const btn = { background: T.brand, color: "#fff", border: "none", borderRadius: 12, padding: "13px 0", fontSize: 16, fontWeight: 700, cursor: "pointer", width: "100%" };
 

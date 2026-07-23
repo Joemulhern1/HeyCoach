@@ -36,7 +36,7 @@ const C = {
   brandSoft: "var(--brandSoft)", mono: "var(--mono)",
 };
 const input = { background: C.bg, border: `1px solid ${C.border}`, color: C.text, borderRadius: 14, padding: "11px 14px", fontSize: 15, outline: "none", width: "100%" };
-const primaryBtn = { background: "#111827", color: "#fff", border: "none", borderRadius: 999, padding: "14px 0", fontSize: 15, fontWeight: 600, cursor: "pointer", width: "100%", letterSpacing: 0.1, transition: "transform .12s ease, filter .12s ease" };
+const primaryBtn = { background: "#3A3F4A", color: "#fff", border: "none", borderRadius: 999, padding: "14px 0", fontSize: 15, fontWeight: 600, cursor: "pointer", width: "100%", letterSpacing: 0.1, transition: "transform .12s ease, filter .12s ease" };
 const ghostBtn = { background: C.surface, border: `1px solid ${C.border}`, color: C.text, borderRadius: 999, padding: "8px 15px", fontSize: 13, cursor: "pointer", fontWeight: 600, transition: "background .12s ease, border-color .12s ease, transform .12s ease" };
 
 // Parse a response safely — if the server returns non-JSON (timeout/crash page),
@@ -48,7 +48,7 @@ async function jget(r) {
 }
 
 const Eyebrow = ({ children }) => <div style={{ fontSize: 11, letterSpacing: 2, textTransform: "uppercase", color: C.muted, fontWeight: 700 }}>{children}</div>;
-const Card = ({ children, style, onClick }) => <div onClick={onClick} style={{ background: C.surface, borderRadius: 22, padding: 20, boxShadow: "0 1px 2px rgba(17,24,39,.04), 0 6px 20px rgba(17,24,39,.05)", ...style }}>{children}</div>;
+const Card = ({ children, style, onClick }) => <div onClick={onClick} style={{ background: C.surface, borderRadius: 22, padding: 22, boxShadow: "0 1px 2px rgba(44,48,56,.03), 0 8px 24px rgba(44,48,56,.045)", ...style }}>{children}</div>;
 const Field = ({ label, children }) => (
   <label style={{ display: "flex", flexDirection: "column", gap: 6 }}>
     <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>{label}</span>{children}
@@ -152,14 +152,14 @@ export default function HeyCoach() {
   );
 }
 
-const Logo = () => <span style={{ width: 22, height: 22, borderRadius: 7, background: "#111827", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 900, flexShrink: 0 }}>H</span>;
+const Logo = () => <span style={{ width: 22, height: 22, borderRadius: 7, background: "#3A3F4A", display: "inline-flex", alignItems: "center", justifyContent: "center", color: "#fff", fontSize: 13, fontWeight: 900, flexShrink: 0 }}>H</span>;
 const ErrBanner = ({ children }) => <div style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", color: "#B91C1C", borderRadius: 16, padding: "10px 14px", marginBottom: 16, fontSize: 14 }}>{children}</div>;
 
 function CenterWrap({ children }) {
   return (
     <div style={{ minHeight: "100vh", background: C.bg, color: C.text }}>
       <div style={{ maxWidth: 600, margin: "0 auto", padding: "26px 20px 64px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 9, fontWeight: 800, fontSize: 17, letterSpacing: -0.4, marginBottom: 26 }}><Logo /> HeyCoach</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 9, fontWeight: 700, fontSize: 17, letterSpacing: -0.4, marginBottom: 26 }}><Logo /> HeyCoach</div>
         {children}
       </div>
     </div>
@@ -238,7 +238,7 @@ function AppShell({ me, nav, setNav, children }) {
         <div className="sidefoot">
           {me?.role === "admin" && <a href="/admin" className="navitem"><span className="ic">{ICONS.admin}</span>Admin</a>}
           <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "8px 11px" }}>
-            <span style={{ width: 30, height: 30, borderRadius: "50%", background: C.brandSoft, color: C.brand, display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 800, fontSize: 13, flexShrink: 0 }}>{(me?.displayName || me?.username || "?").slice(0, 1).toUpperCase()}</span>
+            <span style={{ width: 30, height: 30, borderRadius: "50%", background: C.brandSoft, color: C.brand, display: "inline-flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 13, flexShrink: 0 }}>{(me?.displayName || me?.username || "?").slice(0, 1).toUpperCase()}</span>
             <div style={{ minWidth: 0 }}><div style={{ fontSize: 13.5, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{me?.displayName || me?.username || "Athlete"}</div></div>
           </div>
           <button className="navitem" onClick={logout}><span className="ic">{ICONS.logout}</span>Log out</button>
@@ -247,7 +247,7 @@ function AppShell({ me, nav, setNav, children }) {
       <div className="content">
         <div className="topbar">
           <button className="hamb" onClick={() => setOpen(true)}>☰</button>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 800, fontSize: 15 }}><Logo /> HeyCoach</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontWeight: 700, fontSize: 15 }}><Logo /> HeyCoach</div>
         </div>
         <div className="content-inner">{children}</div>
       </div>
@@ -262,80 +262,160 @@ const Spinner = ({ label }) => (
   </div>
 );
 
+const PB_STEPS = ["Discipline", "Your goal", "Your week", "Your numbers", "Review"];
+
 function Onboarding({ profile, setProfile, onBuild, busy }) {
+  const [step, setStep] = useState(0);
   const upd = (k, v) => setProfile((p) => ({ ...p, [k]: v }));
-  const cycle = (day) => setProfile((p) => {
-    const order = ["ride", "gym", "rest"];
-    const next = order[(order.indexOf(p.schedule[day]) + 1) % order.length];
-    return { ...p, schedule: { ...p.schedule, [day]: next } };
-  });
   const typeColor = (t) => (t === "gym" ? ZONES.strength.color : t === "ride" ? ZONES.endurance.color : C.faint);
+  const rt = profile.riderType || "gc";
   const projWkg = (profile.targetFTP / profile.targetWeightKg).toFixed(2);
 
+  // Live summary of the week they've described
+  const rideDays = DAYS.filter((d) => profile.schedule[d] === "ride");
+  const gymDays = DAYS.filter((d) => profile.schedule[d] === "gym");
+  const weeklyHours = rideDays.reduce((a, d) => a + (Number(profile.dayHours?.[d]) || 1.5), 0) + gymDays.length * 0.75;
+  const weeksToEvent = profile.eventDate ? Math.max(0, Math.round((new Date(profile.eventDate) - Date.now()) / (7 * 86400000))) : null;
+
+  const next = () => setStep((v) => Math.min(PB_STEPS.length - 1, v + 1));
+  const back = () => setStep((v) => Math.max(0, v - 1));
+  const canNext = step === 1 ? !!(profile.eventName && profile.eventDate) : step === 2 ? rideDays.length > 0 : true;
+
   return (
-    <div style={{ maxWidth: 540, margin: "0 auto" }}>
-      <Eyebrow>Set up your coach</Eyebrow>
-      <h2 style={{ margin: "8px 0 4px", fontSize: 26, fontWeight: 800, letterSpacing: -0.5 }}>Tell HeyCoach the goal</h2>
-      <p style={{ color: C.muted, margin: "0 0 22px", fontSize: 14, lineHeight: 1.5 }}>Power and weight targets. The coach periodises toward the date and runs the deficit around your training.</p>
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-        <div style={{ gridColumn: "1 / -1" }}>
-          <Field label="The rider you want to become">
-            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              {ARCHETYPE_KEYS.map((k) => {
-                const active = (profile.riderType || "gc") === k;
-                return <button key={k} type="button" onClick={() => upd("riderType", k)} className="ghost" style={{ ...ghostBtn, padding: "8px 14px", fontSize: 13, ...(active ? { borderColor: C.brand, color: C.brand, background: C.brandSoft } : {}) }}>{ARCHETYPES[k].label}</button>;
-              })}
-            </div>
-            <div style={{ fontSize: 12, color: C.muted, marginTop: 7, lineHeight: 1.5 }}>All your training builds toward {ARCHETYPES[profile.riderType || "gc"].note}. Change this any time and rebuild to re-shape the plan.</div>
+    <div style={{ maxWidth: 620, margin: "0 auto" }}>
+      <Eyebrow>Plan builder</Eyebrow>
+      <h2 style={{ margin: "8px 0 4px", fontSize: 26, fontWeight: 700, letterSpacing: -0.5 }}>Let's build your plan</h2>
+      <p style={{ color: C.muted, margin: "0 0 18px", fontSize: 14, lineHeight: 1.5 }}>A few questions and HeyCoach builds a full periodised plan around your discipline, your goal and the time you actually have.</p>
+
+      {/* stepper */}
+      <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
+        {PB_STEPS.map((_, i) => (
+          <div key={i} style={{ flex: 1, height: 4, borderRadius: 999, background: i <= step ? C.brand : C.border, transition: "background .2s ease" }} />
+        ))}
+      </div>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11.5, color: C.muted, fontWeight: 700, marginBottom: 20 }}>
+        <span style={{ color: C.brand }}>{PB_STEPS[step]}</span>
+        <span>Step {step + 1} of {PB_STEPS.length}</span>
+      </div>
+
+      {step === 0 && (
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>What kind of cyclist are you training to be?</div>
+          <p style={{ color: C.muted, fontSize: 13, margin: "0 0 14px", lineHeight: 1.5 }}>This shapes every session — the mix of endurance, threshold, VO2 and sprint work in each phase.</p>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
+            {ARCHETYPE_KEYS.map((k) => {
+              const active = rt === k;
+              return (
+                <button key={k} type="button" onClick={() => upd("riderType", k)} className="tap" style={{ textAlign: "left", padding: "13px 15px", borderRadius: 18, cursor: "pointer", background: active ? C.brandSoft : C.surface, border: active ? `2px solid ${C.brand}` : `1px solid ${C.border}`, color: C.text }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 700, color: active ? C.brand : C.text }}>{ARCHETYPES[k].label}</div>
+                  <div style={{ fontSize: 11.5, color: C.muted, marginTop: 4, lineHeight: 1.45 }}>{ARCHETYPES[k].note}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {step === 1 && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div style={{ gridColumn: "1 / -1", fontSize: 15, fontWeight: 700 }}>What are you training for?</div>
+          <div style={{ gridColumn: "1 / -1" }}><Field label="Goal event"><input style={input} placeholder="e.g. County Championships" value={profile.eventName} onChange={(e) => upd("eventName", e.target.value)} /></Field></div>
+          <Field label="Event date"><input type="date" style={input} value={profile.eventDate} onChange={(e) => upd("eventDate", e.target.value)} /></Field>
+          <Field label="Experience">
+            <select style={input} value={profile.experience} onChange={(e) => upd("experience", e.target.value)}>
+              <option>Beginner</option><option>Intermediate</option><option>Experienced amateur</option><option>Competitive racer</option>
+            </select>
           </Field>
+          {weeksToEvent != null && (
+            <div style={{ gridColumn: "1 / -1", background: C.brandSoft, borderRadius: 16, padding: "11px 14px", fontSize: 13.5, lineHeight: 1.5 }}>
+              That's <b style={{ color: C.brand }}>{weeksToEvent} weeks</b> away — {weeksToEvent >= 12 ? "plenty of runway for a full base → build → peak → taper cycle." : weeksToEvent >= 6 ? "enough to build and sharpen; we'll get straight into productive work." : "tight, so we'll prioritise sharpening and arriving fresh."}
+            </div>
+          )}
         </div>
-        <div style={{ gridColumn: "1 / -1" }}><Field label="Goal event"><input style={input} value={profile.eventName} onChange={(e) => upd("eventName", e.target.value)} /></Field></div>
-        <Field label="Event date"><input type="date" style={input} value={profile.eventDate} onChange={(e) => upd("eventDate", e.target.value)} /></Field>
-        <Field label="Experience">
-          <select style={input} value={profile.experience} onChange={(e) => upd("experience", e.target.value)}>
-            <option>Beginner</option><option>Intermediate</option><option>Experienced amateur</option><option>Competitive racer</option>
-          </select>
-        </Field>
-        <Field label="Current FTP (W)"><input type="number" style={{ ...input, fontFamily: C.mono }} value={profile.currentFTP} onChange={(e) => upd("currentFTP", +e.target.value)} /></Field>
-        <Field label="Target FTP (W)"><input type="number" style={{ ...input, fontFamily: C.mono }} value={profile.targetFTP} onChange={(e) => upd("targetFTP", +e.target.value)} /></Field>
-        <Field label="Current weight (kg)"><input type="number" style={{ ...input, fontFamily: C.mono }} value={profile.currentWeightKg} onChange={(e) => upd("currentWeightKg", +e.target.value)} /></Field>
-        <Field label="Target weight (kg)"><input type="number" style={{ ...input, fontFamily: C.mono }} value={profile.targetWeightKg} onChange={(e) => upd("targetWeightKg", +e.target.value)} /></Field>
-      </div>
-      <div style={{ marginTop: 14, background: C.brandSoft, border: `1px solid ${C.brand}`, borderRadius: 16, padding: "10px 14px", fontSize: 13, color: C.text }}>
-        Target power-to-weight: <span style={{ fontFamily: C.mono, color: C.brand, fontWeight: 700 }}>{projWkg} W/kg</span> at {profile.targetFTP}W / {profile.targetWeightKg}kg
-      </div>
-      <div style={{ marginTop: 18 }}>
-        <span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>Your week — what each day is for, and how much time you have</span>
-        <div style={{ display: "flex", flexDirection: "column", gap: 6, marginTop: 8 }}>
-          {DAYS.map((d) => {
-            const type = profile.schedule[d];
-            const hrs = Number(profile.dayHours?.[d]) || 0;
-            const setType = (t) => setProfile((p) => ({ ...p, schedule: { ...p.schedule, [d]: t } }));
-            const setHrs = (v) => setProfile((p) => ({ ...p, dayHours: { ...(p.dayHours || {}), [d]: Number(v) } }));
-            const fmtH = (h) => h === 0 ? "Auto" : (h >= 1 ? `${Math.floor(h)}h${h % 1 ? String(Math.round((h % 1) * 60)).padStart(2, "0") : ""}` : `${Math.round(h * 60)}min`);
-            return (
-              <div key={d} style={{ display: "flex", alignItems: "center", gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${typeColor(type)}`, borderRadius: 14, padding: "8px 10px" }}>
-                <div style={{ width: 34, fontSize: 12.5, fontWeight: 700 }}>{d}</div>
-                <div style={{ display: "flex", gap: 4 }}>
-                  {["ride", "gym", "rest"].map((t) => (
-                    <button key={t} type="button" onClick={() => setType(t)} className="ghost" style={{ ...ghostBtn, padding: "3px 9px", fontSize: 11, textTransform: "capitalize", ...(type === t ? { borderColor: typeColor(t), color: C.text, fontWeight: 700 } : {}) }}>{t}</button>
-                  ))}
-                </div>
-                {type === "ride" ? (
-                  <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-                    <input type="range" min="0" max="4" step="0.25" value={hrs} onChange={(e) => setHrs(e.target.value)} style={{ flex: 1, accentColor: "var(--brand)", minWidth: 0 }} />
-                    <span style={{ fontSize: 11.5, fontFamily: C.mono, fontWeight: 700, color: hrs ? C.brand : C.faint, width: 42, textAlign: "right" }}>{fmtH(hrs)}</span>
+      )}
+
+      {step === 2 && (
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>When can you train?</div>
+          <p style={{ color: C.muted, fontSize: 13, margin: "0 0 14px", lineHeight: 1.5 }}>Set what each day is for, and cap the hours you actually have. Sessions are fitted to the slot — your hard intervals are protected.</p>
+          <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+            {DAYS.map((d) => {
+              const type = profile.schedule[d];
+              const hrs = Number(profile.dayHours?.[d]) || 0;
+              const setType = (t) => setProfile((p) => ({ ...p, schedule: { ...p.schedule, [d]: t } }));
+              const setHrs = (v) => setProfile((p) => ({ ...p, dayHours: { ...(p.dayHours || {}), [d]: Number(v) } }));
+              const fmtH = (h) => h === 0 ? "Auto" : (h >= 1 ? `${Math.floor(h)}h${h % 1 ? String(Math.round((h % 1) * 60)).padStart(2, "0") : ""}` : `${Math.round(h * 60)}min`);
+              return (
+                <div key={d} style={{ display: "flex", alignItems: "center", gap: 10, background: C.surface, border: `1px solid ${C.border}`, borderLeft: `3px solid ${typeColor(type)}`, borderRadius: 14, padding: "8px 10px" }}>
+                  <div style={{ width: 34, fontSize: 12.5, fontWeight: 700 }}>{d}</div>
+                  <div style={{ display: "flex", gap: 4 }}>
+                    {["ride", "gym", "rest"].map((t) => (
+                      <button key={t} type="button" onClick={() => setType(t)} className="ghost" style={{ ...ghostBtn, padding: "3px 9px", fontSize: 11, textTransform: "capitalize", ...(type === t ? { borderColor: typeColor(t), color: C.text, fontWeight: 700 } : {}) }}>{t}</button>
+                    ))}
                   </div>
-                ) : (
-                  <div style={{ flex: 1, fontSize: 11, color: C.faint, textAlign: "right" }}>{type === "gym" ? "~45min strength" : "recovery"}</div>
-                )}
-              </div>
-            );
-          })}
+                  {type === "ride" ? (
+                    <div style={{ flex: 1, display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
+                      <input type="range" min="0" max="4" step="0.25" value={hrs} onChange={(e) => setHrs(e.target.value)} style={{ flex: 1, accentColor: "var(--brand)", minWidth: 0 }} />
+                      <span style={{ fontSize: 11.5, fontFamily: C.mono, fontWeight: 700, color: hrs ? C.brand : C.faint, width: 42, textAlign: "right" }}>{fmtH(hrs)}</span>
+                    </div>
+                  ) : (
+                    <div style={{ flex: 1, fontSize: 11, color: C.faint, textAlign: "right" }}>{type === "gym" ? "~45min strength" : "recovery"}</div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <div style={{ marginTop: 12, background: C.surfaceHi, borderRadius: 16, padding: "11px 14px", fontSize: 13.5 }}>
+            <b>{rideDays.length} ride day{rideDays.length === 1 ? "" : "s"}</b>{gymDays.length ? `, ${gymDays.length} gym` : ""} · roughly <b style={{ color: C.brand, fontFamily: C.mono }}>{weeklyHours.toFixed(1)}h</b> a week
+            {rideDays.length === 0 && <div style={{ color: "#DC2626", marginTop: 6 }}>Pick at least one ride day to continue.</div>}
+          </div>
         </div>
-        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 7, lineHeight: 1.5 }}>Slide to cap a ride day's time — sessions fit the slot, protecting the intervals. "Auto" lets the plan choose.</div>
+      )}
+
+      {step === 3 && (
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
+          <div style={{ gridColumn: "1 / -1", fontSize: 15, fontWeight: 700 }}>Where are you now, and where do you want to get to?</div>
+          <Field label="Current FTP (W)"><input type="number" style={{ ...input, fontFamily: C.mono }} value={profile.currentFTP} onChange={(e) => upd("currentFTP", +e.target.value)} /></Field>
+          <Field label="Target FTP (W)"><input type="number" style={{ ...input, fontFamily: C.mono }} value={profile.targetFTP} onChange={(e) => upd("targetFTP", +e.target.value)} /></Field>
+          <Field label="Current weight (kg)"><input type="number" style={{ ...input, fontFamily: C.mono }} value={profile.currentWeightKg} onChange={(e) => upd("currentWeightKg", +e.target.value)} /></Field>
+          <Field label="Target weight (kg)"><input type="number" style={{ ...input, fontFamily: C.mono }} value={profile.targetWeightKg} onChange={(e) => upd("targetWeightKg", +e.target.value)} /></Field>
+          <div style={{ gridColumn: "1 / -1", background: C.brandSoft, borderRadius: 16, padding: "11px 14px", fontSize: 13.5 }}>
+            Target power-to-weight: <span style={{ fontFamily: C.mono, color: C.brand, fontWeight: 700 }}>{projWkg} W/kg</span> at {profile.targetFTP}W / {profile.targetWeightKg}kg
+          </div>
+        </div>
+      )}
+
+      {step === 4 && (
+        <div>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>Here's the plan I'll build</div>
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            {[
+              ["Discipline", ARCHETYPES[rt].label, ARCHETYPES[rt].note],
+              ["Goal", profile.eventName || "—", profile.eventDate ? `${profile.eventDate}${weeksToEvent != null ? ` · ${weeksToEvent} weeks away` : ""}` : ""],
+              ["Your week", `${rideDays.length} ride days${gymDays.length ? ` + ${gymDays.length} gym` : ""}`, `about ${weeklyHours.toFixed(1)} hours a week`],
+              ["Targets", `${profile.currentFTP}W → ${profile.targetFTP}W`, `${profile.currentWeightKg}kg → ${profile.targetWeightKg}kg (${projWkg} W/kg)`],
+            ].map(([k, v, sub]) => (
+              <div key={k} style={{ display: "flex", gap: 12, alignItems: "flex-start", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 16, padding: "12px 14px" }}>
+                <div style={{ width: 88, fontSize: 11, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4, flexShrink: 0, paddingTop: 2 }}>{k}</div>
+                <div style={{ minWidth: 0 }}>
+                  <div style={{ fontSize: 14.5, fontWeight: 700 }}>{v}</div>
+                  {sub && <div style={{ fontSize: 12, color: C.muted, marginTop: 2, lineHeight: 1.45 }}>{sub}</div>}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div style={{ marginTop: 12, background: C.brandSoft, borderRadius: 16, padding: "12px 14px", fontSize: 13.5, lineHeight: 1.55 }}>
+            I'll periodise <b>base → build → peak → taper</b> toward {profile.eventName || "your event"}, with a recovery week roughly every fourth week, sessions matched to {ARCHETYPES[rt].label.toLowerCase()} demands, and everything fitted to your available time. You can change any of it afterwards — just ask the coach.
+          </div>
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 10, marginTop: 24 }}>
+        {step > 0 && <button onClick={back} className="ghost" style={{ ...ghostBtn, padding: "13px 22px", fontSize: 15 }}>Back</button>}
+        {step < PB_STEPS.length - 1
+          ? <button onClick={next} disabled={!canNext} className="primary" style={{ ...primaryBtn, flex: 1, opacity: canNext ? 1 : 0.45 }}>Continue →</button>
+          : <button onClick={onBuild} disabled={busy} className="primary" style={{ ...primaryBtn, flex: 1, opacity: busy ? 0.6 : 1 }}>{busy ? "Building your plan…" : "Build my plan →"}</button>}
       </div>
-      <button className="primary" onClick={onBuild} disabled={busy} style={{ ...primaryBtn, marginTop: 24, opacity: busy ? 0.6 : 1 }}>{busy ? "Building…" : "Build my week →"}</button>
     </div>
   );
 }
@@ -560,7 +640,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
 
   const Head = ({ title, sub }) => (
     <div style={{ marginBottom: 2 }}>
-      <h1 style={{ fontSize: 24, fontWeight: 800, margin: 0, letterSpacing: -0.4 }}>{title}</h1>
+      <h1 style={{ fontSize: 24, fontWeight: 700, margin: 0, letterSpacing: -0.4 }}>{title}</h1>
       {sub && <div style={{ color: C.muted, fontSize: 14, marginTop: 3 }}>{sub}</div>}
     </div>
   );
@@ -631,11 +711,11 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
           <Card style={tz ? { borderLeft: `4px solid ${todaysLog ? "#059669" : tz.color}` } : {}}>
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
               <Eyebrow>Today · {todayIso}</Eyebrow>
-              {todaysLog && <span style={{ background: "#059669", color: "#fff", fontSize: 11.5, fontWeight: 800, padding: "3px 10px", borderRadius: 999 }}>✓ Done</span>}
+              {todaysLog && <span style={{ background: "#059669", color: "#fff", fontSize: 11.5, fontWeight: 700, padding: "3px 10px", borderRadius: 999 }}>✓ Done</span>}
             </div>
             {todaysLog ? (
               <div style={{ marginTop: 10 }}>
-                <div style={{ fontSize: 18, fontWeight: 800 }}>{todaysLog.name}</div>
+                <div style={{ fontSize: 18, fontWeight: 700 }}>{todaysLog.name}</div>
                 <div style={{ fontSize: 12, color: C.muted, fontFamily: C.mono, marginTop: 2 }}>{today ? `Planned: ${today.type === "rest" ? "Rest" : today.title}` : "Logged today"} · {todaysLog.source || "logged"}</div>
                 <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 14 }}>
                   {tssOf(todaysLog) != null && <Metric v={tssOf(todaysLog)} l="TSS" />}
@@ -648,7 +728,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
                 {todaysLog.score != null && (
                   <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, background: C.surfaceHi, borderRadius: 18, padding: "12px 14px" }}>
                     <div style={{ display: "flex", alignItems: "baseline", gap: 1, flexShrink: 0 }}>
-                      <span style={{ fontSize: 30, fontWeight: 800, fontFamily: C.mono, color: todaysLog.score >= 7 ? "#059669" : todaysLog.score >= 5 ? C.brand : "#D97706", lineHeight: 1 }}>{todaysLog.score}</span>
+                      <span style={{ fontSize: 30, fontWeight: 700, fontFamily: C.mono, color: todaysLog.score >= 7 ? "#059669" : todaysLog.score >= 5 ? C.brand : "#D97706", lineHeight: 1 }}>{todaysLog.score}</span>
                       <span style={{ fontSize: 14, color: C.faint, fontWeight: 700 }}>/10</span>
                     </div>
                     <div style={{ minWidth: 0 }}>
@@ -662,7 +742,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
             ) : today ? (
               <div style={{ marginTop: 8 }}>
                 <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-                  <div style={{ fontSize: 19, fontWeight: 800 }}>{today.title}</div>
+                  <div style={{ fontSize: 19, fontWeight: 700 }}>{today.title}</div>
                   <div style={{ fontFamily: C.mono, color: tz.color, fontWeight: 700 }}>{tz.label} · {today.duration}</div>
                 </div>
                 <p style={{ color: C.muted, marginTop: 8, lineHeight: 1.6, marginBottom: 0 }}>{today.description}</p>
@@ -672,7 +752,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
                       <Metric v={`${stepsTss(today.steps)}`} l="TSS" />
                       {mainSetText(today.steps, profile?.currentFTP) && <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 10.5, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Main set</div><div style={{ fontSize: 13.5, fontWeight: 700, fontFamily: C.mono }}>{mainSetText(today.steps, profile.currentFTP)}</div></div>}
                     </div>
-                    <IntervalProfile steps={today.steps} />
+                    <IntervalProfile steps={today.steps} ftp={profile?.currentFTP} />
                   </div>
                 )}
                 <div style={{ display: "flex", gap: 8, marginTop: 14, flexWrap: "wrap" }}>
@@ -754,7 +834,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 10, flexWrap: "wrap" }}>
               <div style={{ minWidth: 0 }}>
                 <Eyebrow>Last session</Eyebrow>
-                <div style={{ fontSize: 16, fontWeight: 800, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lastSession.name}</div>
+                <div style={{ fontSize: 16, fontWeight: 700, marginTop: 3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{lastSession.name}</div>
                 <div style={{ fontSize: 11.5, color: C.muted, fontFamily: C.mono }}>{(lastSession.date || lastSession.addedAt || "").slice(0, 10)} · {lastSession.source}</div>
               </div>
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -766,7 +846,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
             {lastSession.score != null && (
               <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 12, background: C.surfaceHi, borderRadius: 18, padding: "12px 14px" }}>
                 <div style={{ display: "flex", alignItems: "baseline", gap: 1, flexShrink: 0 }}>
-                  <span style={{ fontSize: 30, fontWeight: 800, fontFamily: C.mono, color: lastSession.score >= 7 ? "#059669" : lastSession.score >= 5 ? C.brand : "#D97706", lineHeight: 1 }}>{lastSession.score}</span>
+                  <span style={{ fontSize: 30, fontWeight: 700, fontFamily: C.mono, color: lastSession.score >= 7 ? "#059669" : lastSession.score >= 5 ? C.brand : "#D97706", lineHeight: 1 }}>{lastSession.score}</span>
                   <span style={{ fontSize: 14, color: C.faint, fontWeight: 700 }}>/10</span>
                 </div>
                 <div style={{ minWidth: 0 }}>
@@ -808,21 +888,21 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
 
       {nav === "calendar" && (<>
         <Head title="Calendar" sub="Your plan, races and time off — periodised and rolling." />
-        <EventsCard events={events} setEvents={setEvents} setError={setError} scheduleRebuild={scheduleRebuild} />
-        <AvailabilityCard availability={availability} setAvailability={setAvailability} setError={setError} scheduleRebuild={scheduleRebuild} />
         {block ? (
           <BlockView
             block={block} curWeek={curWeek} selected={selected} setSelected={setSelected}
             sel={sel} selZone={selZone} onRegenerate={onRegenerate} busy={busy}
-            downloadWorkout={downloadWorkout} prepareWeek={prepareWeek} preparing={preparing} events={events} dayAction={dayAction} onSetHours={setWeekHours}
+            downloadWorkout={downloadWorkout} prepareWeek={prepareWeek} preparing={preparing} events={events} dayAction={dayAction} onSetHours={setWeekHours} ftp={profile?.currentFTP}
           />
         ) : buildPrompt}
+        <EventsCard events={events} setEvents={setEvents} setError={setError} scheduleRebuild={scheduleRebuild} />
+        <AvailabilityCard availability={availability} setAvailability={setAvailability} setError={setError} scheduleRebuild={scheduleRebuild} />
       </>)}
 
       {nav === "workouts" && (<>
         <Head title="Workouts" sub="Generate a fresh session on demand, or browse the library — all export to Garmin & Zwift." />
-        <WorkoutGenerator />
-        <LibraryCard riderType={profile?.riderType || "gc"} />
+        <WorkoutGenerator ftp={profile?.currentFTP} />
+        <LibraryCard riderType={profile?.riderType || "gc"} ftp={profile?.currentFTP} />
       </>)}
 
       {nav === "analytics" && (<>
@@ -914,13 +994,13 @@ function NutritionView({ profile, weights, today, plan, onGenerate, busy }) {
   const Stat = ({ label, value, unit, color }) => (
     <div style={{ flex: 1, minWidth: 120, background: C.surface, border: `1px solid ${C.border}`, borderRadius: 18, padding: "14px 16px" }}>
       <div style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}>{label}</div>
-      <div style={{ fontSize: 24, fontWeight: 800, fontFamily: C.mono, marginTop: 5, color: color || C.text }}>{value}<span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}> {unit}</span></div>
+      <div style={{ fontSize: 24, fontWeight: 700, fontFamily: C.mono, marginTop: 5, color: color || C.text }}>{value}<span style={{ fontSize: 12, color: C.muted, fontWeight: 600 }}> {unit}</span></div>
     </div>
   );
   const Meal = ({ slot, m }) => m ? (
     <Card style={{ marginTop: 0 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 10, flexWrap: "wrap" }}>
-        <div><span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", color: C.brand, fontWeight: 700 }}>{slot}</span><div style={{ fontSize: 16, fontWeight: 800, marginTop: 2 }}>{m.name}</div></div>
+        <div><span style={{ fontSize: 11, letterSpacing: 1.5, textTransform: "uppercase", color: C.brand, fontWeight: 700 }}>{slot}</span><div style={{ fontSize: 16, fontWeight: 700, marginTop: 2 }}>{m.name}</div></div>
         <div style={{ fontFamily: C.mono, fontSize: 11.5, color: C.muted }}>{m.kcal} kcal · {m.carbsG}C {m.proteinG}P {m.fatG}F</div>
       </div>
       {m.ingredients?.length > 0 && <div style={{ marginTop: 10, display: "flex", flexWrap: "wrap", gap: 6 }}>{m.ingredients.map((ing, i) => <span key={i} style={{ fontSize: 12, background: C.surfaceHi, borderRadius: 20, padding: "3px 10px", color: C.text }}>{ing}</span>)}</div>}
@@ -1000,10 +1080,10 @@ function GlanceStrip({ profile, weights, events, pmc }) {
   return (
     <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 2, margin: "0 -2px", WebkitOverflowScrolling: "touch" }}>
       {tiles.map((t, i) => (
-        <div key={i} style={{ flex: "1 0 auto", minWidth: 92, background: C.surface, borderRadius: 20, padding: "13px 16px", boxShadow: "0 1px 2px rgba(17,24,39,.04), 0 6px 20px rgba(17,24,39,.05)" }}>
+        <div key={i} style={{ flex: "1 0 auto", minWidth: 92, background: C.surface, borderRadius: 20, padding: "13px 16px", boxShadow: "0 1px 2px rgba(44,48,56,.03), 0 8px 24px rgba(44,48,56,.045)" }}>
           <div style={{ fontSize: 10.5, color: C.muted, textTransform: "uppercase", letterSpacing: 0.6, fontWeight: 700, whiteSpace: "nowrap" }}>{t.label}</div>
           <div style={{ display: "flex", alignItems: "baseline", gap: 4, marginTop: 5 }}>
-            <span style={{ fontSize: 23, fontWeight: 800, color: t.color, fontFamily: C.mono, lineHeight: 1 }}>{t.value}</span>
+            <span style={{ fontSize: 23, fontWeight: 700, color: t.color, fontFamily: C.mono, lineHeight: 1 }}>{t.value}</span>
             <span style={{ fontSize: 11.5, color: C.faint, fontWeight: 600 }}>{t.unit}</span>
           </div>
         </div>
@@ -1025,7 +1105,7 @@ function GoalHeader({ profile, weights, onEdit, events }) {
     <div style={{ display: "flex", flexWrap: "wrap", gap: 18, alignItems: "center", justifyContent: "space-between" }}>
       <div>
         <Eyebrow>Next event</Eyebrow>
-        <div style={{ fontSize: 20, fontWeight: 800, marginTop: 4 }}>{next ? next.name : "No event set"}</div>
+        <div style={{ fontSize: 20, fontWeight: 700, marginTop: 4 }}>{next ? next.name : "No event set"}</div>
         <div style={{ color: C.muted, fontSize: 13, marginTop: 2 }}>{next ? <><span style={{ fontFamily: C.mono, color: C.text }}>{wo}</span> weeks out · {next.date}{next.priority ? ` · ${next.priority}-race` : ""}</> : "Add one below and the plan builds around it"}</div>
         <div style={{ marginTop: 10, fontSize: 12, color: C.muted }}>Power-to-weight</div>
         <div style={{ fontFamily: C.mono, fontSize: 18, fontWeight: 700 }}>{curWkg} <span style={{ color: C.muted, fontSize: 13 }}>→</span> <span style={{ color: C.brand }}>{projWkg}</span> <span style={{ color: C.muted, fontSize: 12 }}>W/kg</span></div>
@@ -1114,7 +1194,7 @@ const Stat = ({ label, value, unit, color }) => (
 );
 const Metric = ({ v, l }) => (
   <div style={{ background: C.surfaceHi, borderRadius: 14, padding: "8px 12px", minWidth: 66 }}>
-    <div style={{ fontFamily: C.mono, fontSize: 15, fontWeight: 800, lineHeight: 1.1, whiteSpace: "nowrap" }}>{v}</div>
+    <div style={{ fontFamily: C.mono, fontSize: 15, fontWeight: 700, lineHeight: 1.1, whiteSpace: "nowrap" }}>{v}</div>
     <div style={{ fontSize: 9.5, color: C.muted, textTransform: "uppercase", letterSpacing: 0.4, marginTop: 3, whiteSpace: "nowrap" }}>{l}</div>
   </div>
 );
@@ -1131,6 +1211,70 @@ function currentWeekIdx(block) {
 const isoAdd = (startISO, d) => new Date(new Date(startISO + "T00:00:00Z").getTime() + d * 86400000).toISOString().slice(0, 10);
 const fmtDayMon = (iso) => new Date(iso + "T00:00:00Z").toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 
+function stepsIF(steps) {
+  let n = 0, d = 0;
+  for (const s of steps || []) { const mid = ((s.powerLowPct + s.powerHighPct) / 2) / 100; n += s.durationSec * mid * mid; d += s.durationSec; }
+  return d ? Math.sqrt(n / d) : null;
+}
+function difficultyOf(ifv) {
+  if (ifv == null) return null;
+  if (ifv < 0.7) return { label: "Easy", color: "#22C55E" };
+  if (ifv < 0.85) return { label: "Moderate", color: "#EAB308" };
+  if (ifv < 0.98) return { label: "Hard", color: "#F97316" };
+  return { label: "Very hard", color: "#EF4444" };
+}
+function TileProfile({ steps }) {
+  const total = steps.reduce((a, s) => a + s.durationSec, 0) || 1;
+  return (
+    <div style={{ display: "flex", alignItems: "flex-end", height: "100%", width: "100%" }}>
+      {steps.map((s, i) => {
+        const p = s.powerHighPct || 160;
+        const h = Math.max(14, Math.min(100, (p / 150) * 100));
+        const w = Math.max(0.3, (s.durationSec / total) * 100);
+        const soft = s.intensity === "rest" || s.intensity === "warmup" || s.intensity === "cooldown";
+        return <div key={i} style={{ width: `${w}%`, height: `${h}%`, background: soft ? "rgba(125,211,252,0.4)" : "#7DD3FC" }} />;
+      })}
+    </div>
+  );
+}
+const TileStat = ({ label, v }) => (
+  <div>
+    <div style={{ fontFamily: C.mono, fontSize: 13, fontWeight: 700, lineHeight: 1 }}>{v}</div>
+    <div style={{ fontSize: 8.5, color: C.muted, fontWeight: 700, letterSpacing: 0.5, marginTop: 2 }}>{label}</div>
+  </div>
+);
+function WorkoutTile({ d, date, isToday, active, onClick, ev }) {
+  const rest = d.type === "rest", off = d.status === "off", gym = d.type === "gym", missed = d.status === "missed";
+  const z = ZONES[d.intensity] || ZONES.rest;
+  const hasProfile = d.steps?.length > 0;
+  const tss = hasProfile ? stepsTss(d.steps) : null;
+  const ifv = hasProfile ? stepsIF(d.steps) : null;
+  const diff = difficultyOf(ifv);
+  return (
+    <button onClick={onClick} className="tap" style={{ width: "100%", textAlign: "left", padding: 0, overflow: "hidden", borderRadius: 18, cursor: "pointer", background: C.surface, border: active ? `2px solid ${C.brand}` : isToday ? `1.5px solid ${C.brand}` : `1px solid ${C.border}`, boxShadow: "0 1px 2px rgba(44,48,56,.03), 0 8px 22px rgba(44,48,56,.045)" }}>
+      <div style={{ height: 58, background: (rest || off) ? C.surfaceHi : "#242A36", padding: hasProfile ? "7px 9px" : 0, display: "flex", alignItems: hasProfile ? "flex-end" : "center", justifyContent: hasProfile ? "flex-start" : "center" }}>
+        {hasProfile ? <TileProfile steps={d.steps} /> : <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: (rest || off) ? C.faint : "#7DD3FC" }}>{gym ? "STRENGTH" : rest ? "REST" : off ? "OFF" : ""}</span>}
+      </div>
+      <div style={{ padding: "9px 13px 11px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10.5, color: isToday ? C.brand : C.muted, fontWeight: 700 }}>
+          <span>{d.day} · {fmtDayMon(date)}{isToday ? " · today" : ""}</span>
+          {ev && <span style={{ color: C.brand }}>{ICONS.race}</span>}
+        </div>
+        <div style={{ fontSize: 15, fontWeight: 700, marginTop: 3, textDecoration: missed ? "line-through" : "none", color: missed ? C.muted : C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{off ? "Off" : rest ? "Rest" : d.title}</div>
+        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>{rest ? "Recover" : off ? "Time off" : gym ? "Strength & conditioning" : z.label}</div>
+        {hasProfile && (
+          <div style={{ display: "flex", gap: 16, marginTop: 9, alignItems: "flex-end" }}>
+            <TileStat label="DURATION" v={d.duration} />
+            <TileStat label="TSS" v={tss} />
+            <TileStat label="IF" v={ifv ? ifv.toFixed(2) : "—"} />
+            {diff && <span style={{ marginLeft: "auto", fontSize: 11, fontWeight: 700, color: diff.color, display: "flex", alignItems: "center", gap: 5 }}><span style={{ width: 7, height: 7, borderRadius: "50%", background: diff.color }} />{diff.label}</span>}
+          </div>
+        )}
+      </div>
+    </button>
+  );
+}
+
 function WeekList({ block, focusWeek, setFocusWeek, curWeek, selected, setSelected, eventDates, onSetHours }) {
   const wi = Math.max(0, Math.min(block.weeks.length - 1, focusWeek));
   const wk = block.weeks[wi];
@@ -1142,7 +1286,7 @@ function WeekList({ block, focusWeek, setFocusWeek, curWeek, selected, setSelect
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
         {navBtn("‹", wi === 0, () => setFocusWeek(wi - 1))}
         <div style={{ textAlign: "center", flex: 1, minWidth: 0 }}>
-          <div style={{ fontWeight: 800, fontSize: 15.5 }}>Week {wk.weekNumber} · {wk.phase}</div>
+          <div style={{ fontWeight: 700, fontSize: 15.5 }}>Week {wk.weekNumber} · {wk.phase}</div>
           <div style={{ fontSize: 12, color: C.muted }}>{fmtDayMon(start)} – {fmtDayMon(isoAdd(start, 6))}{wi === curWeek ? " · this week" : ""}</div>
         </div>
         {navBtn("›", wi === block.weeks.length - 1, () => setFocusWeek(wi + 1))}
@@ -1158,28 +1302,11 @@ function WeekList({ block, focusWeek, setFocusWeek, curWeek, selected, setSelect
           {wk.hoursCap && wk.hoursNote && <div style={{ fontSize: 12, color: C.brand, textAlign: "center", marginTop: 8, lineHeight: 1.4 }}>{wk.hoursNote}</div>}
         </div>
       )}
-      <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
         {wk.days.map((d, di) => {
-          const z = ZONES[d.intensity] || ZONES.rest;
           const date = d.date || isoAdd(start, di);
           const isToday = date === today, active = selected && selected.week === wi && selected.day === di;
-          const off = d.status === "off", missed = d.status === "missed", rest = d.type === "rest";
-          const ev = eventDates.has(date);
-          return (
-            <button key={di} onClick={() => setSelected(active ? null : { week: wi, day: di })}
-              style={{ display: "flex", alignItems: "center", gap: 12, textAlign: "left", width: "100%", padding: "12px 14px", borderRadius: 18, border: `1px solid ${active ? z.color : isToday ? C.brand : C.border}`, background: active ? C.brandSoft : C.surface, cursor: "pointer", color: C.text }}>
-              <div style={{ width: 4, alignSelf: "stretch", borderRadius: 3, minHeight: 34, background: rest ? C.border : missed ? "#FB7185" : off ? C.faint : z.color }} />
-              <div style={{ minWidth: 46 }}>
-                <div style={{ fontSize: 13, fontWeight: 800, color: isToday ? C.brand : C.text }}>{d.day}</div>
-                <div style={{ fontSize: 11, color: C.muted }}>{fmtDayMon(date)}</div>
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 15, fontWeight: 700, textDecoration: missed ? "line-through" : "none", color: missed ? C.muted : C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{ev ? <span style={{ color: C.brand, marginRight: 5, verticalAlign: -1 }}>{ICONS.race}</span> : null}{off ? "Off" : rest ? "Rest" : d.title}</div>
-                <div style={{ fontSize: 12, color: C.muted }}>{rest ? "Recover" : off ? "Time off" : `${z.label} · ${d.duration}`}</div>
-              </div>
-              <span style={{ color: C.faint, fontSize: 20, flexShrink: 0 }}>›</span>
-            </button>
-          );
+          return <WorkoutTile key={di} d={d} date={date} isToday={isToday} active={active} ev={eventDates.has(date)} onClick={() => setSelected(active ? null : { week: wi, day: di })} />;
         })}
       </div>
     </div>
@@ -1200,7 +1327,7 @@ function MonthGrid({ dateMap, monthCursor, setMonthCursor, selected, setSelected
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
         {navBtn("‹", () => setMonthCursor(m === 0 ? { y: y - 1, m: 11 } : { y, m: m - 1 }))}
-        <div style={{ fontWeight: 800, fontSize: 15.5 }}>{monthName}</div>
+        <div style={{ fontWeight: 700, fontSize: 15.5 }}>{monthName}</div>
         {navBtn("›", () => setMonthCursor(m === 11 ? { y: y + 1, m: 0 } : { y, m: m + 1 }))}
       </div>
       {!isCurMonth && <button onClick={() => setMonthCursor({ y: nowM.getFullYear(), m: nowM.getMonth() })} className="ghost" style={{ ...ghostBtn, fontSize: 12.5, marginBottom: 10, width: "100%" }}>Back to today</button>}
@@ -1220,7 +1347,7 @@ function MonthGrid({ dateMap, monthCursor, setMonthCursor, selected, setSelected
             <button key={i} onClick={() => hit && setSelected(active ? null : { week: hit.wi, day: hit.di })} disabled={!hit}
               style={{ aspectRatio: "1 / 1", minHeight: 42, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 4, border: `1px solid ${active ? z.color : isToday ? C.brand : C.border}`, borderRadius: 14, cursor: hit ? "pointer" : "default", background: active ? C.brandSoft : C.surface, opacity: inMonth ? 1 : 0.38, color: C.text }}>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 10.5, fontWeight: 800, color: isToday ? C.brand : C.muted }}>{c.getUTCDate()}</span>
+                <span style={{ fontSize: 10.5, fontWeight: 700, color: isToday ? C.brand : C.muted }}>{c.getUTCDate()}</span>
                 {ev && <span style={{ color: C.brand }}>{ICONS.race}</span>}
               </div>
               {d && !rest && !off && <span style={{ height: 4, borderRadius: 2, background: missed ? "#FB7185" : z.color }} />}
@@ -1233,7 +1360,7 @@ function MonthGrid({ dateMap, monthCursor, setMonthCursor, selected, setSelected
   );
 }
 
-function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRegenerate, busy, downloadWorkout, prepareWeek, preparing, events, dayAction, onSetHours }) {
+function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRegenerate, busy, downloadWorkout, prepareWeek, preparing, events, dayAction, onSetHours, ftp }) {
   const [moveOpen, setMoveOpen] = useState(false);
   const [replaceOpen, setReplaceOpen] = useState(false);
   const [view, setView] = useState("week");
@@ -1245,7 +1372,7 @@ function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRege
   return (
     <>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 10 }}>
-        <div><Eyebrow>Training plan</Eyebrow><div style={{ fontSize: 17, fontWeight: 800, marginTop: 2 }}>{busy ? "Re-planning around your changes…" : `${block.weeks.length} weeks · rolling`}</div></div>
+        <div><Eyebrow>Training plan</Eyebrow><div style={{ fontSize: 17, fontWeight: 700, marginTop: 2 }}>{busy ? "Re-planning around your changes…" : `${block.weeks.length} weeks · rolling`}</div></div>
         <button onClick={onRegenerate} className="ghost" style={ghostBtn} disabled={busy}>{busy ? "…" : "Rebuild"}</button>
       </div>
       {block.summary && <p style={{ color: C.muted, fontSize: 13.5, lineHeight: 1.5, margin: "0 0 12px" }}>{block.summary}</p>}
@@ -1272,7 +1399,7 @@ function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRege
       {sel && selWeek && (
         <Card style={{ borderLeft: `4px solid ${sel.status === "missed" ? "#FB7185" : sel.status === "off" ? C.faint : selZone.color}`, marginTop: 16 }}>
           <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-            <div style={{ fontSize: 17, fontWeight: 800, textDecoration: sel.status === "missed" ? "line-through" : "none", color: sel.status === "missed" ? C.muted : C.text }}>Wk {selWeek.weekNumber} · {sel.day} · {sel.title}</div>
+            <div style={{ fontSize: 17, fontWeight: 700, textDecoration: sel.status === "missed" ? "line-through" : "none", color: sel.status === "missed" ? C.muted : C.text }}>Wk {selWeek.weekNumber} · {sel.day} · {sel.title}</div>
             <div style={{ fontFamily: C.mono, color: selZone.color, fontWeight: 700 }}>{selZone.label} · {sel.duration}</div>
           </div>
           {sel.status === "missed" && <div style={{ color: "#FB7185", fontSize: 12, fontWeight: 700, marginTop: 6 }}>✕ Marked missed</div>}
@@ -1283,7 +1410,7 @@ function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRege
                 <Metric v={`${stepsTss(sel.steps)}`} l="TSS" />
                 {mainSetText(sel.steps, null) && <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 10.5, color: C.muted, textTransform: "uppercase", letterSpacing: 0.5 }}>Main set</div><div style={{ fontSize: 13.5, fontWeight: 700, fontFamily: C.mono }}>{mainSetText(sel.steps, null)}</div></div>}
               </div>
-              <IntervalProfile steps={sel.steps} />
+              <IntervalProfile steps={sel.steps} ftp={ftp} />
             </div>
           )}
           {sel.type === "ride" && sel.status !== "off" && (sel.steps?.length > 0
@@ -1361,7 +1488,7 @@ function WeekRow({ wk, wi, isCurrent, selected, setSelected, wkEvents }) {
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 8, gap: 8, flexWrap: "wrap" }}>
         <div style={{ fontSize: 13, fontWeight: 700 }}>
           Week {wk.weekNumber} <span style={{ color: C.muted, fontWeight: 600 }}>· {wk.phase}</span>
-          {isCurrent && <span style={{ marginLeft: 8, fontSize: 10, color: C.brand, fontWeight: 800, textTransform: "uppercase", letterSpacing: 1 }}>This week</span>}
+          {isCurrent && <span style={{ marginLeft: 8, fontSize: 10, color: C.brand, fontWeight: 700, textTransform: "uppercase", letterSpacing: 1 }}>This week</span>}
         </div>
         <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>{wk.startDate ? wk.startDate.slice(5) : ""}{wk.targetHours ? ` · ${wk.targetHours}h` : ""}</div>
       </div>
@@ -1383,7 +1510,7 @@ function WeekRow({ wk, wi, isCurrent, selected, setSelected, wkEvents }) {
           return (
             <button key={di} onClick={() => setSelected(active ? null : { week: wi, day: di })} className="daycard"
               style={{ textAlign: "left", background: active ? C.bg : off ? "rgba(90,107,115,0.12)" : "transparent", border: `1px solid ${active ? topColor : C.border}`, borderTop: `3px solid ${topColor}`, borderRadius: 7, padding: "7px 5px", cursor: "pointer", color: C.text, minHeight: 50, display: "flex", flexDirection: "column", gap: 2, overflow: "hidden", opacity: off ? 0.7 : 1 }}>
-              <span style={{ fontSize: 10.5, fontWeight: 800, color: missed ? "#FB7185" : C.text }}>{d.day}{missed ? " ✕" : ""}</span>
+              <span style={{ fontSize: 10.5, fontWeight: 700, color: missed ? "#FB7185" : C.text }}>{d.day}{missed ? " ✕" : ""}</span>
               <span style={{ fontSize: 9.5, color: C.muted, lineHeight: 1.15, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", textDecoration: missed ? "line-through" : "none" }}>{label}</span>
             </button>
           );
@@ -1461,10 +1588,10 @@ function suggestFtpClient(sessions, profile) {
 
 const CAT_COLORS = {
   recovery: "#0EA5E9", endurance: "#10B981", tempo: "#65A30D", sweetspot: "#4D7C0F",
-  threshold: "#F59E0B", vo2: "#EF4444", anaerobic: "#DB2777", sprint: "#9333EA", specialty: "#4338CA", test: "#0EA5E9",
+  threshold: "#E8A23C", vo2: "#E5605E", anaerobic: "#CF5390", sprint: "#8B62D9", specialty: "#5A54C9", test: "#0EA5E9",
 };
 
-function WorkoutGenerator() {
+function WorkoutGenerator({ ftp }) {
   const [type, setType] = useState("vo2");
   const [gen, setGen] = useState(null);
   const make = () => setGen(generateWorkout(type === "surprise" ? null : type, { seed: Math.floor(Math.random() * 1e9) }));
@@ -1481,11 +1608,11 @@ function WorkoutGenerator() {
       {gen && (
         <div style={{ marginTop: 16, border: `1px solid ${C.border}`, borderRadius: 18, padding: 14 }}>
           <div style={{ display: "flex", justifyContent: "space-between", flexWrap: "wrap", gap: 8 }}>
-            <div style={{ fontSize: 16, fontWeight: 800 }}>{gen.name}</div>
+            <div style={{ fontSize: 16, fontWeight: 700 }}>{gen.name}</div>
             <div style={{ fontFamily: C.mono, color: C.muted, fontSize: 12.5 }}>{gen.durationMin}min · {gen.tss} TSS</div>
           </div>
           <p style={{ fontSize: 13.5, color: C.muted, margin: "6px 0 0" }}>{gen.description}</p>
-          <IntervalProfile steps={gen.steps} />
+          <IntervalProfile steps={gen.steps} ftp={ftp} />
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 12 }}>
             <button onClick={() => dl("fit")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>Garmin (.FIT)</button>
             <button onClick={() => dl("zwo")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>Zwift (.ZWO)</button>
@@ -1496,22 +1623,63 @@ function WorkoutGenerator() {
   );
 }
 
-function IntervalProfile({ steps }) {
+function IntervalProfile({ steps, ftp }) {
+  const [hi, setHi] = useState(null);
   const total = steps.reduce((a, s) => a + s.durationSec, 0) || 1;
+  // Elapsed seconds at the START of each step, so hovering tells you how far into the session you are.
+  const starts = [];
+  let run = 0;
+  for (const s of steps) { starts.push(run); run += s.durationSec; }
+  const fmtClock = (sec) => `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, "0")}`;
+  const h = hi != null ? steps[hi] : null;
+  const wattsOf = (pct) => (ftp ? Math.round((ftp * pct) / 100) : null);
   return (
-    <div style={{ display: "flex", alignItems: "flex-end", gap: 1, height: 46, marginTop: 12 }}>
-      {steps.map((s, i) => {
-        const p = s.powerHighPct || 160;
-        const h = Math.max(8, Math.min(100, (p / 150) * 100));
-        const w = Math.max(0.4, (s.durationSec / total) * 100);
-        const col = s.intensity === "rest" ? C.faint : (s.intensity === "warmup" || s.intensity === "cooldown") ? C.muted : C.brand;
-        return <div key={i} title={`${s.name} · ${Math.round(s.durationSec / 60) || "<1"}min`} style={{ width: `${w}%`, height: `${h}%`, background: col, borderRadius: "2px 2px 0 0" }} />;
-      })}
+    <div style={{ marginTop: 12 }}>
+      <div
+        onMouseLeave={() => setHi(null)}
+        style={{ display: "flex", alignItems: "flex-end", gap: 1, height: 56, position: "relative", cursor: "crosshair" }}
+      >
+        {steps.map((s, i) => {
+          const p = s.powerHighPct || 160;
+          const ht = Math.max(8, Math.min(100, (p / 150) * 100));
+          const w = Math.max(0.4, (s.durationSec / total) * 100);
+          const soft = s.intensity === "rest" || s.intensity === "warmup" || s.intensity === "cooldown";
+          const col = s.intensity === "rest" ? C.faint : soft ? C.muted : C.brand;
+          return (
+            <div
+              key={i}
+              onMouseEnter={() => setHi(i)}
+              onTouchStart={() => setHi(i)}
+              title={`${s.name} · ${s.powerLowPct}–${s.powerHighPct}% FTP`}
+              style={{ width: `${w}%`, height: `${ht}%`, background: col, borderRadius: "3px 3px 0 0", opacity: hi == null || hi === i ? 1 : 0.45, transition: "opacity .12s ease" }}
+            />
+          );
+        })}
+      </div>
+      {/* Readout: what you're doing, at what watts, and how far into the session */}
+      <div style={{ minHeight: 34, marginTop: 6, background: h ? C.surfaceHi : "transparent", borderRadius: 12, padding: h ? "7px 11px" : 0, display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap", transition: "background .12s ease" }}>
+        {h ? (
+          <>
+            <span style={{ fontSize: 12.5, fontWeight: 700 }}>{h.name}</span>
+            <span style={{ fontSize: 12.5, fontFamily: C.mono, color: C.brand, fontWeight: 700 }}>
+              {wattsOf(h.powerLowPct) != null ? `${wattsOf(h.powerLowPct)}–${wattsOf(h.powerHighPct)}W` : `${h.powerLowPct}–${h.powerHighPct}%`}
+            </span>
+            <span style={{ fontSize: 11.5, color: C.muted, fontFamily: C.mono }}>
+              {h.powerLowPct}–{h.powerHighPct}% FTP
+            </span>
+            <span style={{ fontSize: 11.5, color: C.muted, fontFamily: C.mono, marginLeft: "auto" }}>
+              {fmtClock(starts[hi])}–{fmtClock(starts[hi] + h.durationSec)} · {h.durationSec >= 60 ? `${Math.round(h.durationSec / 60)}min` : `${h.durationSec}s`}
+            </span>
+          </>
+        ) : (
+          <span style={{ fontSize: 11.5, color: C.faint }}>Hover the profile for watts and time into the session</span>
+        )}
+      </div>
     </div>
   );
 }
 
-function LibraryCard({ riderType }) {
+function LibraryCard({ riderType, ftp }) {
   const [filter, setFilter] = useState("all");
   const [forMe, setForMe] = useState(!!riderType);
   const [q, setQ] = useState("");
@@ -1552,13 +1720,13 @@ function LibraryCard({ riderType }) {
                   <div style={{ fontSize: 14, fontWeight: 700 }}>{w.name}</div>
                   <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>{CATEGORIES.find((c) => c.key === w.cat)?.label} · {w.durationMin}min · {w.tss} TSS</div>
                 </div>
-                <span style={{ fontSize: 10.5, fontWeight: 800, fontFamily: C.mono, color: col, border: `1px solid ${col}`, borderRadius: 6, padding: "2px 6px", flexShrink: 0 }}>L{w.level || 5}</span>
+                <span style={{ fontSize: 10.5, fontWeight: 700, fontFamily: C.mono, color: col, border: `1px solid ${col}`, borderRadius: 6, padding: "2px 6px", flexShrink: 0 }}>L{w.level || 5}</span>
                 <span style={{ color: C.muted, fontSize: 12 }}>{isOpen ? "▲" : "▼"}</span>
               </div>
               {isOpen && (
                 <div>
                   <p style={{ fontSize: 13.5, lineHeight: 1.5, margin: "10px 0 0" }}>{w.description}</p>
-                  <IntervalProfile steps={w.steps} />
+                  <IntervalProfile steps={w.steps} ftp={ftp} />
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
                     <button onClick={() => dl(w.id, "fit")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>Garmin (.FIT)</button>
                     <button onClick={() => dl(w.id, "zwo")} className="ghost" style={{ ...ghostBtn, color: C.text, borderColor: C.brand }}>Zwift (.ZWO)</button>
@@ -1626,7 +1794,7 @@ function AnalyticsCard({ sessions, profile }) {
     <Card>
       <Eyebrow>Your fitness story</Eyebrow>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 10, flexWrap: "wrap" }}>
-        <span style={{ background: st.color, color: "#fff", fontSize: 12, fontWeight: 800, padding: "4px 11px", borderRadius: 999 }}>{st.label}</span>
+        <span style={{ background: st.color, color: "#fff", fontSize: 12, fontWeight: 700, padding: "4px 11px", borderRadius: 999 }}>{st.label}</span>
       </div>
       <p style={{ fontSize: 15.5, lineHeight: 1.55, margin: "10px 0 0", fontWeight: 500 }}>{st.headline}</p>
 
@@ -1635,7 +1803,7 @@ function AnalyticsCard({ sessions, profile }) {
           <div key={t.label} style={{ flex: "1 1 90px", background: C.surfaceHi, borderRadius: 18, padding: "12px 14px" }}>
             <div style={{ fontSize: 11, color: C.muted, fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.4 }}>{t.label}</div>
             <div style={{ display: "flex", alignItems: "baseline", gap: 5, marginTop: 4 }}>
-              <span style={{ fontSize: 26, fontWeight: 800, fontFamily: C.mono, color: t.color, lineHeight: 1 }}>{t.value}</span>
+              <span style={{ fontSize: 26, fontWeight: 700, fontFamily: C.mono, color: t.color, lineHeight: 1 }}>{t.value}</span>
               {t.arrow && <span style={{ fontSize: 11, color: t.arrow === "rising" ? "#059669" : C.muted, fontWeight: 700 }}>{t.arrow === "rising" ? "↑ rising" : t.arrow === "easing" ? "↓ easing" : "steady"}</span>}
             </div>
             <div style={{ fontSize: 11.5, color: C.faint, marginTop: 3 }}>{t.sub}</div>
@@ -1687,7 +1855,7 @@ function EventsCard({ events, setEvents, setError, scheduleRebuild }) {
               <div key={e.id} style={{ background: C.bg, border: `1px solid ${C.border}`, borderLeft: `4px solid ${EV_PRIO[e.priority] || C.brand}`, borderRadius: 16, padding: "10px 12px" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: 14, fontWeight: 700 }}>{e.name} <span style={{ fontSize: 10.5, color: EV_PRIO[e.priority], fontWeight: 800 }}>{e.priority}</span></div>
+                    <div style={{ fontSize: 14, fontWeight: 700 }}>{e.name} <span style={{ fontSize: 10.5, color: EV_PRIO[e.priority], fontWeight: 700 }}>{e.priority}</span></div>
                     <div style={{ fontSize: 11, color: C.muted, fontFamily: C.mono }}>{e.date} · {past ? "done" : `${wo} wk`}</div>
                   </div>
                   <button onClick={() => remove(e.id)} className="ghost" style={{ ...ghostBtn, padding: "4px 9px", fontSize: 12 }}>✕</button>
@@ -1770,7 +1938,7 @@ function CalendarView({ weeks, events, curWeek, selected, setSelected }) {
         const showMonth = month !== lastMonth; lastMonth = month;
         return (
           <div key={wi}>
-            {showMonth && <div style={{ fontSize: 10.5, color: C.brand, fontWeight: 800, letterSpacing: 1, textTransform: "uppercase", margin: "12px 0 5px" }}>{MONTHS[month]} {new Date(ws).getUTCFullYear()}</div>}
+            {showMonth && <div style={{ fontSize: 10.5, color: C.brand, fontWeight: 700, letterSpacing: 1, textTransform: "uppercase", margin: "12px 0 5px" }}>{MONTHS[month]} {new Date(ws).getUTCFullYear()}</div>}
             <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 4, marginBottom: 4 }}>
               {wk.days.map((d, di) => {
                 const date = new Date(ws + di * 86400000).toISOString().slice(0, 10);
@@ -1783,7 +1951,7 @@ function CalendarView({ weeks, events, curWeek, selected, setSelected }) {
                   <button key={di} onClick={() => setSelected(active ? null : { week: wi, day: di })}
                     style={{ aspectRatio: "1 / 1", minHeight: 44, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 4, background: active ? C.surfaceHi : off ? "rgba(90,107,115,0.10)" : "transparent", border: `1px solid ${active ? z.color : isToday ? C.brand : C.border}`, borderRadius: 7, cursor: "pointer", color: C.text, overflow: "hidden", opacity: off ? 0.75 : 1 }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 2 }}>
-                      <span style={{ fontSize: 10, fontWeight: 800, color: isToday ? C.brand : C.muted }}>{date.slice(8)}</span>
+                      <span style={{ fontSize: 10, fontWeight: 700, color: isToday ? C.brand : C.muted }}>{date.slice(8)}</span>
                       {hasEvent && <span style={{ color: C.brand }}>{ICONS.race}</span>}
                     </div>
                     {d.type !== "rest" && !off && <span style={{ height: 4, borderRadius: 2, background: missed ? "#FB7185" : z.color }} />}
