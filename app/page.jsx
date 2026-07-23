@@ -5,7 +5,7 @@ import { LIBRARY, CATEGORIES } from "../lib/library.js";
 import { computePMC, assessLoad } from "../lib/analytics.js";
 import { dailyTargets, classifyDay, fuelling, DAYTYPE_LABEL, dailyAdvice } from "../lib/nutrition.js";
 import { estimateFtp } from "../lib/ftp.js";
-import { feelSwap, ARCHETYPES, ARCHETYPE_KEYS } from "../lib/periodize.js";
+import { feelSwap, ARCHETYPES, ARCHETYPE_KEYS, EVENT_TYPES, EVENT_TYPE_KEYS, FOCUS_LABELS, FOCUS_KEYS } from "../lib/periodize.js";
 import { generateWorkout } from "../lib/generate.js";
 
 const ZONES = {
@@ -72,6 +72,7 @@ export default function HeyCoach() {
   const [me, setMe] = useState(null);
   const [events, setEvents] = useState([]);
   const [availability, setAvailability] = useState([]);
+  const [focuses, setFocuses] = useState([]);
   const [coachChat, setCoachChat] = useState([]);
   const [nutritionPlan, setNutritionPlan] = useState(null);
   const [strava, setStrava] = useState({ configured: false, connected: false, athlete: null });
@@ -94,6 +95,7 @@ export default function HeyCoach() {
       if (s.progression) setProgression(s.progression);
       if (s.events) setEvents(s.events);
       if (s.availability) setAvailability(s.availability);
+      if (s.focuses) setFocuses(s.focuses);
       if (s.coachChat) setCoachChat(s.coachChat);
       if (s.nutritionPlan) setNutritionPlan(s.nutritionPlan);
       if (st) setStrava((p) => ({ ...p, ...st }));
@@ -143,7 +145,7 @@ export default function HeyCoach() {
       {error && <ErrBanner>{error}</ErrBanner>}
       <Dashboard
         profile={profile} block={block} setBlock={setBlock} sessions={sessions} weights={weights} strava={strava} busy={busy}
-        progression={progression} setProgression={setProgression} events={events} setEvents={setEvents} availability={availability} setAvailability={setAvailability} scheduleRebuild={scheduleRebuild}
+        progression={progression} setProgression={setProgression} events={events} setEvents={setEvents} availability={availability} setAvailability={setAvailability} focuses={focuses} setFocuses={setFocuses} scheduleRebuild={scheduleRebuild}
         onEdit={() => setScreen("onboarding")} onRegenerate={() => build(false)}
         setSessions={setSessions} setWeights={setWeights} setError={setError} saveProfile={saveProfile}
         nav={nav} setNav={setNav} me={me} coachChat={coachChat} setCoachChat={setCoachChat} nutritionPlan={nutritionPlan} setNutritionPlan={setNutritionPlan}
@@ -265,13 +267,13 @@ const Spinner = ({ label }) => (
   </div>
 );
 
-const PB_STEPS = ["Discipline", "Your goal", "Your week", "Your numbers", "Review"];
+const PB_STEPS = ["Rider profile", "Your A event", "Your week", "Your numbers", "Review"];
 
 function Onboarding({ profile, setProfile, onBuild, busy }) {
   const [step, setStep] = useState(0);
   const upd = (k, v) => setProfile((p) => ({ ...p, [k]: v }));
   const typeColor = (t) => (t === "gym" ? ZONES.strength.color : t === "ride" ? ZONES.endurance.color : C.faint);
-  const rt = profile.riderType || "gc";
+  const rt = ARCHETYPES[profile.riderType] ? profile.riderType : "allrounder";
   const projWkg = (profile.targetFTP / profile.targetWeightKg).toFixed(2);
 
   // Live summary of the week they've described
@@ -303,7 +305,7 @@ function Onboarding({ profile, setProfile, onBuild, busy }) {
 
       {step === 0 && (
         <div>
-          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>What kind of cyclist are you training to be?</div>
+          <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 4 }}>What kind of rider are you?</div>
           <p style={{ color: C.muted, fontSize: 13, margin: "0 0 14px", lineHeight: 1.5 }}>This shapes every session — the mix of endurance, threshold, VO2 and sprint work in each phase.</p>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))", gap: 10 }}>
             {ARCHETYPE_KEYS.map((k) => {
@@ -324,6 +326,17 @@ function Onboarding({ profile, setProfile, onBuild, busy }) {
           <div style={{ gridColumn: "1 / -1", fontSize: 15, fontWeight: 700 }}>What are you training for?</div>
           <div style={{ gridColumn: "1 / -1" }}><Field label="Goal event"><input style={input} placeholder="e.g. County Championships" value={profile.eventName} onChange={(e) => upd("eventName", e.target.value)} /></Field></div>
           <Field label="Event date"><input type="date" style={input} value={profile.eventDate} onChange={(e) => upd("eventDate", e.target.value)} /></Field>
+          <div style={{ gridColumn: "1 / -1" }}>
+            <Field label="What type of event is it?">
+              <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
+                {EVENT_TYPE_KEYS.map((k) => {
+                  const on = (profile.eventType || "general") === k;
+                  return <button key={k} type="button" onClick={() => upd("eventType", k)} className="ghost" style={{ ...ghostBtn, padding: "7px 13px", fontSize: 12.5, ...(on ? { borderColor: C.brand, color: C.brand, background: C.brandSoft } : {}) }}>{EVENT_TYPES[k].label}</button>;
+                })}
+              </div>
+              <div style={{ fontSize: 12, color: C.muted, marginTop: 7, lineHeight: 1.5 }}>Your peak weeks sharpen for {EVENT_TYPES[profile.eventType || "general"].note}.</div>
+            </Field>
+          </div>
           <Field label="Experience">
             <select style={input} value={profile.experience} onChange={(e) => upd("experience", e.target.value)}>
               <option>Beginner</option><option>Intermediate</option><option>Experienced amateur</option><option>Competitive racer</option>
@@ -393,8 +406,8 @@ function Onboarding({ profile, setProfile, onBuild, busy }) {
           <div style={{ fontSize: 15, fontWeight: 700, marginBottom: 10 }}>Here's the plan I'll build</div>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
             {[
-              ["Discipline", ARCHETYPES[rt].label, ARCHETYPES[rt].note],
-              ["Goal", profile.eventName || "—", profile.eventDate ? `${profile.eventDate}${weeksToEvent != null ? ` · ${weeksToEvent} weeks away` : ""}` : ""],
+              ["Rider profile", ARCHETYPES[rt].label, ARCHETYPES[rt].note],
+              ["Goal", `${profile.eventName || "—"}${profile.eventType && profile.eventType !== "general" ? ` · ${EVENT_TYPES[profile.eventType].label}` : ""}`, profile.eventDate ? `${profile.eventDate}${weeksToEvent != null ? ` · ${weeksToEvent} weeks away` : ""}` : ""],
               ["Your week", `${rideDays.length} ride days${gymDays.length ? ` + ${gymDays.length} gym` : ""}`, `about ${weeklyHours.toFixed(1)} hours a week`],
               ["Targets", `${profile.currentFTP}W → ${profile.targetFTP}W`, `${profile.currentWeightKg}kg → ${profile.targetWeightKg}kg (${projWkg} W/kg)`],
             ].map(([k, v, sub]) => (
@@ -423,7 +436,7 @@ function Onboarding({ profile, setProfile, onBuild, busy }) {
   );
 }
 
-function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, onEdit, onRegenerate, setSessions, setWeights, setError, saveProfile, progression, setProgression, events, setEvents, availability, setAvailability, scheduleRebuild, nav, setNav, me, coachChat, setCoachChat, nutritionPlan, setNutritionPlan }) {
+function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, onEdit, onRegenerate, setSessions, setWeights, setError, saveProfile, progression, setProgression, events, setEvents, availability, setAvailability, focuses, setFocuses, scheduleRebuild, nav, setNav, me, coachChat, setCoachChat, nutritionPlan, setNutritionPlan }) {
   const [selected, setSelected] = useState(null); // { week, day }
   const [q, setQ] = useState(""); const [asking, setAsking] = useState(false);
   const chat = coachChat, setChat = setCoachChat;
@@ -892,7 +905,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
       {nav === "plan" && (<>
         <Head title="My plan" sub="Your season at a glance — discipline, phases and the races you're peaking for." />
         {block ? (
-          <PlanOverview block={block} profile={profile} events={events} saveProfile={saveProfile} onRegenerate={onRegenerate} busy={busy} onEdit={onEdit} setNav={setNav} />
+          <PlanOverview block={block} profile={profile} events={events} saveProfile={saveProfile} onRegenerate={onRegenerate} busy={busy} onEdit={onEdit} setNav={setNav} focuses={focuses} setFocuses={setFocuses} setError={setError} />
         ) : buildPrompt}
       </>)}
 
@@ -912,7 +925,7 @@ function Dashboard({ profile, block, setBlock, sessions, weights, strava, busy, 
       {nav === "workouts" && (<>
         <Head title="Workouts" sub="Generate a fresh session on demand, or browse the library — all export to Garmin & Zwift." />
         <WorkoutGenerator ftp={profile?.currentFTP} />
-        <LibraryCard riderType={profile?.riderType || "gc"} ftp={profile?.currentFTP} />
+        <LibraryCard riderType={ARCHETYPES[profile?.riderType] ? profile.riderType : "allrounder"} ftp={profile?.currentFTP} />
       </>)}
 
       {nav === "analytics" && (<>
@@ -1103,8 +1116,70 @@ function GlanceStrip({ profile, weights, events, pmc }) {
 }
 
 
-function PlanOverview({ block, profile, events, saveProfile, onRegenerate, busy, onEdit, setNav }) {
-  const rt = profile?.riderType || "gc";
+
+function FocusBlockCard({ focuses, setFocuses, setError }) {
+  const [focus, setFocus] = useState("sprinting");
+  const [weeks, setWeeks] = useState(4);
+  const [from, setFrom] = useState(() => new Date().toISOString().slice(0, 10));
+  const [busy, setBusy] = useState(false);
+  const list = [...(focuses || [])].sort((a, b) => a.from.localeCompare(b.from));
+  const addBlock = async () => {
+    setBusy(true);
+    try {
+      const to = new Date(new Date(from + "T00:00:00Z").getTime() + weeks * 7 * 86400000 - 86400000).toISOString().slice(0, 10);
+      const r = await fetch("/api/coach/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "set_focus", from, to, focus }) });
+      const d = await jget(r);
+      if (r.ok) { if (d.focuses) setFocuses(d.focuses); if (d.block) window.location.reload(); }
+      else setError(d.error || "Couldn't add that block.");
+    } catch { setError("Couldn't add that block."); } finally { setBusy(false); }
+  };
+  const removeBlock = async (f) => {
+    setBusy(true);
+    try {
+      const r = await fetch("/api/coach/apply", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "set_focus", from: f.from, to: f.to, focus: "general" }) });
+      const d = await jget(r);
+      if (r.ok) window.location.reload(); else setError(d.error || "Couldn't remove that block.");
+    } catch { setError("Couldn't remove that block."); } finally { setBusy(false); }
+  };
+  return (
+    <Card>
+      <Eyebrow>Focus blocks</Eyebrow>
+      <div style={{ color: C.muted, fontSize: 13, marginTop: 4, marginBottom: 12 }}>Drop in a short, targeted block — a few weeks hammering one weakness — and the plan re-shapes for that window, then returns to your normal progression.</div>
+      {list.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 7, marginBottom: 14 }}>
+          {list.map((f, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 10, background: C.surfaceHi, borderRadius: 14, padding: "10px 13px" }}>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div style={{ fontSize: 13.5, fontWeight: 700, textTransform: "capitalize" }}>{FOCUS_LABELS[f.focus] || f.focus} block</div>
+                <div style={{ fontSize: 11.5, color: C.muted, fontFamily: C.mono }}>{f.from}{f.to ? ` → ${f.to}` : " onward"}</div>
+              </div>
+              <button onClick={() => removeBlock(f)} disabled={busy} className="ghost" style={{ ...ghostBtn, padding: "5px 11px", fontSize: 12 }}>Remove</button>
+            </div>
+          ))}
+        </div>
+      )}
+      <div style={{ display: "flex", gap: 7, flexWrap: "wrap", marginBottom: 12 }}>
+        {FOCUS_KEYS.map((k) => (
+          <button key={k} onClick={() => setFocus(k)} className="ghost" style={{ ...ghostBtn, padding: "7px 13px", fontSize: 12.5, textTransform: "capitalize", ...(focus === k ? { borderColor: C.brand, color: C.brand, background: C.brandSoft } : {}) }}>{FOCUS_LABELS[k] || k}</button>
+        ))}
+      </div>
+      <div style={{ display: "flex", gap: 10, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <div style={{ flex: "1 1 150px" }}><Field label="Starting"><input type="date" style={input} value={from} onChange={(e) => setFrom(e.target.value)} /></Field></div>
+        <div style={{ flex: "0 0 130px" }}>
+          <Field label="Length">
+            <select style={input} value={weeks} onChange={(e) => setWeeks(+e.target.value)}>
+              {[2, 3, 4, 5, 6, 8].map((w) => <option key={w} value={w}>{w} weeks</option>)}
+            </select>
+          </Field>
+        </div>
+        <button onClick={addBlock} disabled={busy} className="primary" style={{ ...primaryBtn, width: "auto", padding: "12px 20px", opacity: busy ? 0.6 : 1 }}>{busy ? "Adding…" : "Add block"}</button>
+      </div>
+    </Card>
+  );
+}
+
+function PlanOverview({ block, profile, events, saveProfile, onRegenerate, busy, onEdit, setNav, focuses, setFocuses, setError }) {
+  const rt = ARCHETYPES[profile?.riderType] ? profile.riderType : "allrounder";
   const [saving, setSaving] = useState(null);
   const today = new Date().toISOString().slice(0, 10);
   const evs = [...(events || [])].filter((e) => e.date >= today).sort((a, b) => a.date.localeCompare(b.date));
@@ -1193,6 +1268,8 @@ function PlanOverview({ block, profile, events, saveProfile, onRegenerate, busy,
           })}
         </div>
       </Card>
+
+      <FocusBlockCard focuses={focuses} setFocuses={setFocuses} setError={setError} />
 
       <Card>
         <Eyebrow>Adjust your plan</Eyebrow>
@@ -1359,7 +1436,7 @@ const TileStat = ({ label, v }) => (
     <div style={{ fontSize: 8.5, color: C.muted, fontWeight: 700, letterSpacing: 0.5, marginTop: 2 }}>{label}</div>
   </div>
 );
-function WorkoutTile({ d, date, isToday, active, onClick, ev }) {
+function WorkoutTile({ d, date, isToday, active, onClick, ev, compact, drag }) {
   const rest = d.type === "rest", off = d.status === "off", gym = d.type === "gym", missed = d.status === "missed";
   const z = ZONES[d.intensity] || ZONES.rest;
   const hasProfile = d.steps?.length > 0;
@@ -1367,18 +1444,29 @@ function WorkoutTile({ d, date, isToday, active, onClick, ev }) {
   const ifv = hasProfile ? stepsIF(d.steps) : null;
   const diff = difficultyOf(ifv);
   return (
-    <button onClick={onClick} className="tap" style={{ width: "100%", textAlign: "left", padding: 0, overflow: "hidden", borderRadius: 18, cursor: "pointer", background: C.surface, border: active ? `2px solid ${C.brand}` : isToday ? `1.5px solid ${C.brand}` : `1px solid ${C.border}`, boxShadow: "0 1px 2px rgba(44,48,56,.03), 0 8px 22px rgba(44,48,56,.045)" }}>
-      <div style={{ height: 58, background: (rest || off) ? C.surfaceHi : "#242A36", padding: hasProfile ? "7px 9px" : 0, display: "flex", alignItems: hasProfile ? "flex-end" : "center", justifyContent: hasProfile ? "flex-start" : "center" }}>
+    <button
+      onClick={onClick}
+      draggable={!!drag}
+      onDragStart={drag ? (e) => { e.dataTransfer.setData("text/plain", date); e.dataTransfer.effectAllowed = "move"; drag.onStart(date); } : undefined}
+      onDragOver={drag ? (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; } : undefined}
+      onDragEnter={drag ? () => drag.onOver(date) : undefined}
+      onDrop={drag ? (e) => { e.preventDefault(); const from = e.dataTransfer.getData("text/plain"); drag.onDrop(from, date); } : undefined}
+      onDragEnd={drag ? () => drag.onEnd() : undefined}
+      className="tap"
+      style={{ width: "100%", textAlign: "left", padding: 0, overflow: "hidden", borderRadius: 18, cursor: drag ? "grab" : "pointer", background: C.surface, border: drag?.over === date && drag?.from && drag.from !== date ? `2px dashed ${C.brand}` : active ? `2px solid ${C.brand}` : isToday ? `1.5px solid ${C.brand}` : `1px solid ${C.border}`, opacity: drag?.from === date ? 0.45 : 1, boxShadow: "0 1px 2px rgba(44,48,56,.03), 0 8px 22px rgba(44,48,56,.045)", transition: "opacity .12s ease, border-color .12s ease" }}>
+      <div style={{ height: compact ? 40 : 58, background: (rest || off) ? C.surfaceHi : "#242A36", padding: hasProfile ? "7px 9px" : 0, display: "flex", alignItems: hasProfile ? "flex-end" : "center", justifyContent: hasProfile ? "flex-start" : "center" }}>
         {hasProfile ? <TileProfile steps={d.steps} /> : <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1, color: (rest || off) ? C.faint : "#7DD3FC" }}>{gym ? "STRENGTH" : rest ? "REST" : off ? "OFF" : ""}</span>}
       </div>
-      <div style={{ padding: "9px 13px 11px" }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 10.5, color: isToday ? C.brand : C.muted, fontWeight: 700 }}>
-          <span>{d.day} · {fmtDayMon(date)}{isToday ? " · today" : ""}</span>
+      <div style={{ padding: compact ? "7px 9px 9px" : "9px 13px 11px" }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: compact ? 9.5 : 10.5, color: isToday ? C.brand : C.muted, fontWeight: 700 }}>
+          <span>{compact ? fmtDayMon(date) : `${d.day} · ${fmtDayMon(date)}${isToday ? " · today" : ""}`}</span>
           {ev && <span style={{ color: C.brand }}>{ICONS.race}</span>}
         </div>
-        <div style={{ fontSize: 15, fontWeight: 700, marginTop: 3, textDecoration: missed ? "line-through" : "none", color: missed ? C.muted : C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{off ? "Off" : rest ? "Rest" : d.title}</div>
-        <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>{rest ? "Recover" : off ? "Time off" : gym ? "Strength & conditioning" : z.label}</div>
-        {hasProfile && (
+        <div style={{ fontSize: compact ? 12 : 15, fontWeight: 700, marginTop: 3, lineHeight: 1.3, textDecoration: missed ? "line-through" : "none", color: missed ? C.muted : C.text, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{off ? "Off" : rest ? "Rest" : d.title}</div>
+        {!compact && <div style={{ fontSize: 11.5, color: C.muted, marginTop: 1 }}>{rest ? "Recover" : off ? "Time off" : gym ? "Strength & conditioning" : z.label}</div>}
+        {compact && hasProfile && <div style={{ fontSize: 10, color: C.muted, fontFamily: C.mono, marginTop: 2 }}>{d.duration} · {tss} TSS</div>}
+        {compact && diff && <div style={{ fontSize: 9.5, fontWeight: 700, color: diff.color, marginTop: 3 }}>{diff.label}</div>}
+        {!compact && hasProfile && (
           <div style={{ display: "flex", gap: 16, marginTop: 9, alignItems: "flex-end" }}>
             <TileStat label="DURATION" v={d.duration} />
             <TileStat label="TSS" v={tss} />
@@ -1391,12 +1479,21 @@ function WorkoutTile({ d, date, isToday, active, onClick, ev }) {
   );
 }
 
-function WeekList({ block, focusWeek, setFocusWeek, curWeek, selected, setSelected, eventDates, onSetHours }) {
+function WeekList({ block, focusWeek, setFocusWeek, curWeek, selected, setSelected, eventDates, onSetHours, dayAction }) {
   const wi = Math.max(0, Math.min(block.weeks.length - 1, focusWeek));
   const wk = block.weeks[wi];
   const today = new Date().toISOString().slice(0, 10);
   const start = wk.startDate;
   const navBtn = (dir, disabled, onClick) => <button onClick={onClick} disabled={disabled} className="ghost" style={{ ...ghostBtn, padding: "8px 14px", fontSize: 16, opacity: disabled ? 0.4 : 1 }}>{dir}</button>;
+  const [dragFrom, setDragFrom] = useState(null);
+  const [dragOver, setDragOver] = useState(null);
+  const dragApi = {
+    from: dragFrom, over: dragOver,
+    onStart: (dt) => setDragFrom(dt),
+    onOver: (dt) => setDragOver(dt),
+    onEnd: () => { setDragFrom(null); setDragOver(null); },
+    onDrop: (from, to) => { setDragFrom(null); setDragOver(null); if (from && to && from !== to) dayAction?.({ action: "swapDates", a: from, b: to }); },
+  };
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, marginBottom: 10 }}>
@@ -1418,20 +1515,29 @@ function WeekList({ block, focusWeek, setFocusWeek, curWeek, selected, setSelect
           {wk.hoursCap && wk.hoursNote && <div style={{ fontSize: 12, color: C.brand, textAlign: "center", marginTop: 8, lineHeight: 1.4 }}>{wk.hoursNote}</div>}
         </div>
       )}
-      <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {/* Horizontal week — a column per day, like a real training calendar. Scrolls on narrow screens. */}
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(7, minmax(132px, 1fr))", gap: 8, overflowX: "auto", paddingBottom: 4 }}>
         {wk.days.map((d, di) => {
           const date = d.date || isoAdd(start, di);
           const isToday = date === today, active = selected && selected.week === wi && selected.day === di;
-          return <WorkoutTile key={di} d={d} date={date} isToday={isToday} active={active} ev={eventDates.has(date)} onClick={() => setSelected(active ? null : { week: wi, day: di })} />;
+          return (
+            <div key={di} style={{ minWidth: 0 }}>
+              <div style={{ fontSize: 10.5, fontWeight: 700, color: isToday ? C.brand : C.muted, textTransform: "uppercase", letterSpacing: 0.6, textAlign: "center", marginBottom: 5 }}>{d.day}</div>
+              <WorkoutTile d={d} date={date} isToday={isToday} active={active} compact drag={dragApi} ev={eventDates.has(date)} onClick={() => setSelected(active ? null : { week: wi, day: di })} />
+            </div>
+          );
         })}
       </div>
+      <div style={{ fontSize: 11.5, color: C.faint, marginTop: 8, textAlign: "center" }}>Drag a session onto another day to swap them.</div>
     </div>
   );
 }
 
-function MonthGrid({ dateMap, monthCursor, setMonthCursor, selected, setSelected, eventDates }) {
+function MonthGrid({ dateMap, monthCursor, setMonthCursor, selected, setSelected, eventDates, dayAction }) {
   const today = new Date().toISOString().slice(0, 10);
   const { y, m } = monthCursor;
+  const [dragFrom, setDragFrom] = useState(null);
+  const [dragOver, setDragOver] = useState(null);
   const first = new Date(Date.UTC(y, m, 1));
   const monthName = first.toLocaleDateString("en-GB", { month: "long", year: "numeric", timeZone: "UTC" });
   const lead = (first.getUTCDay() + 6) % 7;
@@ -1439,6 +1545,7 @@ function MonthGrid({ dateMap, monthCursor, setMonthCursor, selected, setSelected
   const cells = Array.from({ length: 42 }, (_, i) => new Date(gridStart + i * 86400000));
   const nowM = new Date(); const isCurMonth = nowM.getFullYear() === y && nowM.getMonth() === m;
   const navBtn = (dir, onClick) => <button onClick={onClick} className="ghost" style={{ ...ghostBtn, padding: "8px 14px", fontSize: 16 }}>{dir}</button>;
+  const doSwap = (from, to) => { setDragFrom(null); setDragOver(null); if (from && to && from !== to) dayAction?.({ action: "swapDates", a: from, b: to }); };
   return (
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
@@ -1447,31 +1554,59 @@ function MonthGrid({ dateMap, monthCursor, setMonthCursor, selected, setSelected
         {navBtn("›", () => setMonthCursor(m === 11 ? { y: y + 1, m: 0 } : { y, m: m + 1 }))}
       </div>
       {!isCurMonth && <button onClick={() => setMonthCursor({ y: nowM.getFullYear(), m: nowM.getMonth() })} className="ghost" style={{ ...ghostBtn, fontSize: 12.5, marginBottom: 10, width: "100%" }}>Back to today</button>}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4, marginBottom: 6 }}>
-        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d, i) => <div key={i} style={{ fontSize: 10, color: C.muted, textAlign: "center", fontWeight: 700 }}>{d}</div>)}
+      <div style={{ overflowX: "auto" }}>
+        <div style={{ minWidth: 700 }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 5, marginBottom: 6 }}>
+            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d, i) => <div key={i} style={{ fontSize: 10, color: C.muted, textAlign: "center", fontWeight: 700, textTransform: "uppercase", letterSpacing: 0.5 }}>{d}</div>)}
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 5 }}>
+            {cells.map((c, i) => {
+              const iso = c.toISOString().slice(0, 10);
+              const inMonth = c.getUTCMonth() === m;
+              const hit = dateMap[iso], d = hit?.d;
+              const isToday = iso === today, active = hit && selected && selected.week === hit.wi && selected.day === hit.di;
+              const ev = eventDates.has(iso);
+              const rest = d?.type === "rest", off = d?.status === "off", gym = d?.type === "gym", missed = d?.status === "missed";
+              const hasProfile = d?.steps?.length > 0;
+              const tss = hasProfile ? stepsTss(d.steps) : null;
+              const diff = hasProfile ? difficultyOf(stepsIF(d.steps)) : null;
+              const isOver = dragOver === iso && dragFrom && dragFrom !== iso;
+              return (
+                <div
+                  key={i}
+                  draggable={!!d}
+                  onDragStart={d ? (e) => { e.dataTransfer.setData("text/plain", iso); setDragFrom(iso); } : undefined}
+                  onDragOver={d ? (e) => { e.preventDefault(); } : undefined}
+                  onDragEnter={d ? () => setDragOver(iso) : undefined}
+                  onDrop={d ? (e) => { e.preventDefault(); doSwap(e.dataTransfer.getData("text/plain"), iso); } : undefined}
+                  onDragEnd={() => { setDragFrom(null); setDragOver(null); }}
+                  onClick={() => hit && setSelected(active ? null : { week: hit.wi, day: hit.di })}
+                  className={d ? "tap" : undefined}
+                  style={{ minHeight: 108, borderRadius: 14, overflow: "hidden", cursor: d ? "grab" : "default", background: C.surface, border: isOver ? `2px dashed ${C.brand}` : active ? `2px solid ${C.brand}` : isToday ? `1.5px solid ${C.brand}` : `1px solid ${C.border}`, opacity: dragFrom === iso ? 0.45 : inMonth ? 1 : 0.42, display: "flex", flexDirection: "column" }}
+                >
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 7px 3px" }}>
+                    <span style={{ fontSize: 10.5, fontWeight: 700, color: isToday ? C.brand : C.muted }}>{c.getUTCDate()}</span>
+                    {ev && <span style={{ color: C.brand }}>{ICONS.race}</span>}
+                  </div>
+                  {d ? (
+                    <>
+                      <div style={{ height: 26, background: (rest || off) ? C.surfaceHi : "#242A36", margin: "0 5px", borderRadius: 6, padding: hasProfile ? "3px 4px" : 0, display: "flex", alignItems: hasProfile ? "flex-end" : "center", justifyContent: "center" }}>
+                        {hasProfile ? <TileProfile steps={d.steps} /> : <span style={{ fontSize: 8, fontWeight: 700, letterSpacing: 0.8, color: (rest || off) ? C.faint : "#7DD3FC" }}>{gym ? "GYM" : rest ? "REST" : off ? "OFF" : ""}</span>}
+                      </div>
+                      <div style={{ padding: "4px 7px 6px", minWidth: 0 }}>
+                        <div style={{ fontSize: 10.5, fontWeight: 700, lineHeight: 1.25, textDecoration: missed ? "line-through" : "none", color: missed ? C.muted : C.text, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{off ? "Off" : rest ? "Rest" : d.title}</div>
+                        {hasProfile && <div style={{ fontSize: 9, color: C.muted, fontFamily: C.mono, marginTop: 2 }}>{d.duration} · {tss} TSS</div>}
+                        {diff && <div style={{ fontSize: 8.5, fontWeight: 700, color: diff.color, marginTop: 2 }}>{diff.label}</div>}
+                      </div>
+                    </>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </div>
       </div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(7,1fr)", gap: 4 }}>
-        {cells.map((c, i) => {
-          const iso = c.toISOString().slice(0, 10);
-          const inMonth = c.getUTCMonth() === m;
-          const hit = dateMap[iso], d = hit?.d;
-          const z = d ? (ZONES[d.intensity] || ZONES.rest) : null;
-          const off = d?.status === "off", missed = d?.status === "missed", rest = d?.type === "rest";
-          const isToday = iso === today, active = hit && selected && selected.week === hit.wi && selected.day === hit.di;
-          const ev = eventDates.has(iso);
-          return (
-            <button key={i} onClick={() => hit && setSelected(active ? null : { week: hit.wi, day: hit.di })} disabled={!hit}
-              style={{ aspectRatio: "1 / 1", minHeight: 42, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: 4, border: `1px solid ${active ? z.color : isToday ? C.brand : C.border}`, borderRadius: 14, cursor: hit ? "pointer" : "default", background: active ? C.brandSoft : C.surface, opacity: inMonth ? 1 : 0.38, color: C.text }}>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontSize: 10.5, fontWeight: 700, color: isToday ? C.brand : C.muted }}>{c.getUTCDate()}</span>
-                {ev && <span style={{ color: C.brand }}>{ICONS.race}</span>}
-              </div>
-              {d && !rest && !off && <span style={{ height: 4, borderRadius: 2, background: missed ? "#FB7185" : z.color }} />}
-              {d && <span style={{ fontSize: 8, color: C.muted, lineHeight: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{off ? "Off" : rest ? "Rest" : d.title}</span>}
-            </button>
-          );
-        })}
-      </div>
+      <div style={{ fontSize: 11.5, color: C.faint, marginTop: 8, textAlign: "center" }}>Drag a session onto another day to swap them.</div>
     </div>
   );
 }
@@ -1509,8 +1644,8 @@ function BlockView({ block, curWeek, selected, setSelected, sel, selZone, onRege
       </div>
 
       {view === "week"
-        ? <WeekList block={block} focusWeek={focusWeek} setFocusWeek={setFocusWeek} curWeek={curWeek} selected={selected} setSelected={setSelected} eventDates={eventDates} onSetHours={onSetHours} />
-        : <MonthGrid dateMap={dateMap} monthCursor={monthCursor} setMonthCursor={setMonthCursor} selected={selected} setSelected={setSelected} eventDates={eventDates} />}
+        ? <WeekList block={block} focusWeek={focusWeek} setFocusWeek={setFocusWeek} curWeek={curWeek} selected={selected} setSelected={setSelected} eventDates={eventDates} onSetHours={onSetHours} dayAction={dayAction} />
+        : <MonthGrid dateMap={dateMap} monthCursor={monthCursor} setMonthCursor={setMonthCursor} selected={selected} setSelected={setSelected} eventDates={eventDates} dayAction={dayAction} />}
 
       {sel && selWeek && (
         <Card style={{ borderLeft: `4px solid ${sel.status === "missed" ? "#FB7185" : sel.status === "off" ? C.faint : selZone.color}`, marginTop: 16 }}>

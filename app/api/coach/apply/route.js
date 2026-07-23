@@ -56,11 +56,13 @@ export async function POST(req) {
     if (!store.profile) return Response.json({ error: "Set up your goal first." }, { status: 400 });
     const focus = p.focus, from = p.from;
     if (!FOCUS_LABELS[focus] || !/^\d{4}-\d{2}-\d{2}$/.test(from || "")) return Response.json({ error: "That change wasn't specific enough to apply." }, { status: 400 });
-    const focuses = [...(store.focuses || []).filter((f) => f.from !== from), ...(focus === "general" ? [] : [{ from, focus }])].sort((a, b) => a.from.localeCompare(b.from));
+    const to = p.to && /^\d{4}-\d{2}-\d{2}$/.test(p.to) ? p.to : null;
+    // A block with an end date is a short focus period; without one it applies from `from` onward.
+    const focuses = [...(store.focuses || []).filter((f) => f.from !== from), ...(focus === "general" ? [] : [{ from, ...(to ? { to } : {}), focus }])].sort((a, b) => a.from.localeCompare(b.from));
     const nb = buildSkeleton(store.profile, store.weights || [], eventsOf(store), store.availability || [], focuses, store.weekHours || {});
     applyAvailability(nb, store.availability || []);
     patch = { block: nb, focuses };
-    note = `Done — from ${from}, your plan now focuses on ${FOCUS_LABELS[focus]}. Open the calendar to see the new sessions.`;
+    note = focus === "general" ? `Done — cleared that focus block; the plan is back to its normal progression.` : (to ? `Done — a ${FOCUS_LABELS[focus]} block from ${from} to ${to}. The plan re-shapes for that window, then returns to normal.` : `Done — from ${from}, your plan now focuses on ${FOCUS_LABELS[focus]}.`);
   } else if (action === "time_off") {
     if (!store.profile) return Response.json({ error: "Set up your goal first." }, { status: 400 });
     const from = resolveDate(p.from, block), to = resolveDate(p.to || p.from, block);
@@ -127,5 +129,5 @@ export async function POST(req) {
   if (patch.block) healDates(patch.block);
   const chat = [...(store.coachChat || []), { role: "assistant", content: note, ts: Date.now() }].slice(-60);
   const saved = await patchStore({ ...patch, coachChat: chat });
-  return Response.json({ block: saved.block, chat: saved.coachChat });
+  return Response.json({ block: saved.block, chat: saved.coachChat, focuses: saved.focuses || [] });
 }

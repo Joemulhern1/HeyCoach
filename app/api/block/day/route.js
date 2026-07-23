@@ -14,9 +14,28 @@ function makeRide(day, key) {
 function durOf(steps) { const s = steps.reduce((a, x) => a + x.durationSec, 0) / 60; return s >= 60 ? `${Math.floor(s / 60)}h${s % 60 ? String(Math.round(s % 60)).padStart(2, "0") : ""}` : `${Math.round(s)}min`; }
 
 export async function PATCH(req) {
-  const { weekIndex, dayIndex, targetDayIndex, action, replaceType } = await req.json();
+  const { weekIndex, dayIndex, targetDayIndex, action, replaceType, a, b } = await req.json();
   const store = await readStore();
   const block = store.block;
+
+  // Date-based swap (drag & drop) — identifies days by date, so it needs no week/day index
+  // and works across week boundaries. Handled before the index guard below.
+  if (action === "swapDates") {
+    if (!block?.weeks?.length) return Response.json({ error: "No plan yet." }, { status: 400 });
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(a || "") || !/^\d{4}-\d{2}-\d{2}$/.test(b || "") || a === b) {
+      return Response.json({ error: "Bad swap." }, { status: 400 });
+    }
+    let A = null, B = null;
+    for (const w of block.weeks) w.days.forEach((d, i) => { if (d.date === a) A = { w, i }; if (d.date === b) B = { w, i }; });
+    if (!A || !B) return Response.json({ error: "Day not in plan." }, { status: 400 });
+    const dA = { ...A.w.days[A.i] }, dB = { ...B.w.days[B.i] };
+    A.w.days[A.i] = { ...dB, day: dA.day, date: dA.date };
+    B.w.days[B.i] = { ...dA, day: dB.day, date: dB.date };
+    healDates(block);
+    const savedSwap = await patchStore({ block, progression: store.progression });
+    return Response.json({ block: savedSwap.block, progression: savedSwap.progression });
+  }
+
   const wk = block?.weeks?.[weekIndex];
   if (!wk?.days?.[dayIndex]) return Response.json({ error: "No such day." }, { status: 404 });
 
